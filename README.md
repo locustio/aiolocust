@@ -1,9 +1,9 @@
 # aiolocust
 
 [![PyPI](https://img.shields.io/pypi/v/aiolocust.svg)](https://pypi.org/project/aiolocust/)
-![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fcyberw%2Faiolocust%2Fmaster%2Fpyproject.toml)
+![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Flocustio%2Faiolocust%2Fmaster%2Fpyproject.toml)
 [![Downloads](https://static.pepy.tech/personalized-badge/aiolocust?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/aiolocust)
-[![Build Status](https://github.com/cyberw/aiolocust/workflows/Tests/badge.svg)](https://github.com/cyberw/aiolocust/actions?query=workflow%3ATests)
+[![Build Status](https://github.com/locustio/aiolocust/workflows/Tests/badge.svg)](https://github.com/locustio/aiolocust/actions?query=workflow%3ATests)
 
 This is a 2026 reimagining of the load testing tool [Locust](https://github.com/locustio/locust/).
 
@@ -182,7 +182,7 @@ uv run aiolocust
 Install for developing the tool itself, or just getting the latest changes before they make it into a release:
 
 ```text
-git clone https://github.com/cyberw/aiolocust.git
+git clone https://github.com/locustio/aiolocust.git
 cd aiolocust
 uv run aiolocust
 ```
@@ -196,7 +196,7 @@ aiolocust
 
 ## API docs
 
-See [documentation](https://cyberw.github.io/aiolocust/).
+See [documentation](https://locustio.github.io/aiolocust/).
 
 ## Contributions
 

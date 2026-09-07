@@ -5,4 +5,4 @@
   :command: cli
   :prog_name: aiolocust
 
-For a proper intro, see the [README](https://github.com/cyberw/aiolocust)
+For a proper intro, see the [README](https://github.com/locustio/aiolocust)
