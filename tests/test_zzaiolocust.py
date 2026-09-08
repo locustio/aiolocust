@@ -395,3 +395,41 @@ async def test_user_forwards_params_to_session_and_handles_timeouts(http_server)
         assert "Summary" in output
         assert await proc.wait() == 0
         assert_search(r"3 .* TimeoutError", output)
+
+
+async def test_shutdown_timeout():
+    with TemporaryDirectory() as tmp_dir:
+        with open(os.path.join(tmp_dir, "my_script.py"), "w") as tempfile:
+            tempfile.write("""
+import asyncio
+
+async def run(user):
+    await asyncio.sleep(10)
+""")
+        proc = await asyncio.create_subprocess_exec(
+            "aiolocust",
+            tempfile.name,
+            "-d",
+            "1",
+            env={
+                "LOCUST_SHUTDOWN_TIMEOUT": "0.1",
+                **os.environ,
+            },
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=2 + WINDOWS_DELAY * 2)
+        except TimeoutError:
+            proc.kill()
+            stdout, stderr = await proc.communicate()
+            output = stdout.decode(errors="replace")
+            print(output)
+            raise AssertionError("process never terminated") from None
+        else:
+            err = stderr.decode(errors="replace")
+            print(err)
+            output = stdout.decode(errors="replace")
+            print(output)
+            assert "Shutdown timed out" in err
+            assert await proc.wait() == 1
