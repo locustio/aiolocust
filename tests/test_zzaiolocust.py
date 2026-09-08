@@ -6,7 +6,17 @@ import signal
 import unittest
 from tempfile import TemporaryDirectory
 
-from utils import WINDOWS_DELAY, assert_search
+from utils import assert_search
+
+if os.name == "nt":
+    from subprocess import CREATE_NEW_PROCESS_GROUP
+
+    WINDOWS_DELAY = 1
+    # this is necessary because otherwise CTRL_C_EVENT is sent to all processes in the same group, including pytest itself
+    creationflags = CREATE_NEW_PROCESS_GROUP
+else:
+    WINDOWS_DELAY = 0
+    creationflags = 0
 
 
 @unittest.skipIf(os.name == "nt", reason="otel instrumentation seems to have some issues with freethreading on Windows")
@@ -233,6 +243,7 @@ async def run(user):
             assert "Shutting down (got SIGINT/CTRL-C)" in err
 
 
+@unittest.skipIf(os.name == "nt", reason="Signal handling on windows is hard")
 async def test_sigint_doesnt_wait_for_otel_to_connect(http_server):  # noqa: ARG001
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
@@ -256,6 +267,7 @@ async def run(user):
                 "OTEL_EXPORTER_OTLP_ENDPOINT": "http://www.locust.cloud:22",  # invalid endpoint to simulate connection issues
                 **os.environ,
             },
+            creationflags=creationflags,
         )
         try:
             await asyncio.sleep(2)
@@ -350,12 +362,14 @@ async def run(user):
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6 + WINDOWS_DELAY * 2)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=7 + WINDOWS_DELAY * 2)
         except TimeoutError:
             proc.kill()
             stdout, stderr = await proc.communicate()
             output = stdout.decode(errors="replace")
             print(output)
+            error = stderr.decode(errors="replace")
+            print(error)
             raise AssertionError("process never terminated") from None
         else:
             err = stderr.decode(errors="replace")

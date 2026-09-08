@@ -1,7 +1,7 @@
 import asyncio
 
 import aiohttp
-from utils import WINDOWS_DELAY, assert_search
+from utils import assert_search
 
 from aiolocust.runner import Runner, Stage, desired_user_count
 from aiolocust.users.http import HttpUser, LocustClientSession
@@ -10,7 +10,6 @@ from aiolocust.users.http import HttpUser, LocustClientSession
 def test_basic(http_server, capteesys):  # noqa: ARG001
     class TestUser(HttpUser):
         async def run(self):
-            await asyncio.sleep(1)
             async with self.client.get("http://localhost:8081/") as resp:
                 pass
             async with self.client.get("http://localhost:8081/404") as resp:
@@ -22,23 +21,22 @@ def test_basic(http_server, capteesys):  # noqa: ARG001
             async with self.client.get("http://localhost:8081/") as resp:
                 assert "bar" in await resp.text()
 
-    Runner([TestUser], 1, 3 + WINDOWS_DELAY).run_test()
+    Runner([TestUser], iterations=1).run_test()
     out, err = capteesys.readouterr()
     assert err == ""
     assert "Summary" in out
-    assert_search(r" http://localhost:8081/[ ]+│[ ]+[46] .* \(50.0%\)", out)
-    assert_search(r" renamed[ ]+│[ ]+[23] .* \(100.0%\)", out)
+    assert_search(r" http://localhost:8081/[ ]+│[ ]+[2] .* \(50.0%\)", out)
+    assert_search(r" renamed[ ]+│[ ]+1 .* \(100.0%\)", out)
     assert "Error" in out
-    assert_search(r"[23] .* assert 'foo' in 'OK' \(test_runner.py:\d", out)
-    assert_search(r"[23] .* 404,", out)
-    assert_search(r"[23] .* Oh no", out)
+    assert_search(r"1 .* assert 'foo' in 'OK' \(test_runner.py:\d", out)
+    assert_search(r"1 .* 404,", out)
+    assert_search(r"1 .* Oh no", out)
     assert "bar" not in out
 
 
 def test_unhandled_exception(http_server, capteesys):  # noqa: ARG001
     class TestUser(HttpUser):
         async def run(self):
-            await asyncio.sleep(1)
             raise Exception("an error")
 
     Runner([TestUser], iterations=1).run_test()
@@ -66,7 +64,7 @@ def test_timeout_catching(http_server, capteesys):  # noqa: ARG001
                 pass
             raise Exception("We'll never get here")
 
-    Runner([TestUser], 1, 1).run_test()
+    Runner([TestUser], iterations=1).run_test()
     out, err = capteesys.readouterr()
     assert err == ""
     assert "Summary" in out
@@ -78,7 +76,6 @@ def test_timeout_catching(http_server, capteesys):  # noqa: ARG001
 def test_w_otel(http_server, capteesys):  # noqa: ARG001
     class TestUser(HttpUser):
         async def run(self):
-            await asyncio.sleep(1)
             async with self.client.get("http://localhost:8081/") as resp:
                 pass
             async with self.client.get("http://localhost:8081/404") as resp:
@@ -88,14 +85,14 @@ def test_w_otel(http_server, capteesys):  # noqa: ARG001
             async with self.client.get("http://localhost:8081/") as resp:
                 assert "bar" in await resp.text()
 
-    Runner([TestUser], 1, 3 + WINDOWS_DELAY).run_test()
+    Runner([TestUser], iterations=1).run_test()
     out, err = capteesys.readouterr()
     assert err == ""
     assert "Summary" in out
-    assert_search(r" http://localhost:8081/[ ]+│[ ]+[468] .* \(50.0%\)", out)
+    assert_search(r" http://localhost:8081/[ ]+│[ ]+[2] .* \(50.0%\)", out)
     assert "Error" in out
-    assert_search(r"[234] .* assert 'foo' in 'OK'", out)
-    assert_search(r"[234] .* 404,", out)
+    assert_search(r"1 .* assert 'foo' in 'OK'", out)
+    assert_search(r"1 .* 404,", out)
     assert "bar" not in out
 
 
@@ -181,3 +178,17 @@ def test_current_user_count_gauge(http_server, monkeypatch):  # noqa: ARG001
 
     assert gauge_values[0] == 0
     assert max(gauge_values) == 2
+
+
+def test_base_url_gets_removed_from_request_name(http_server, capteesys):  # noqa: ARG001
+    class TestUser(HttpUser):
+        async def run(self):
+            async with self.client.get("/") as resp:
+                pass
+
+    Runner([TestUser], iterations=1, host="http://localhost:8081").run_test()
+    out, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in out
+    assert_search(r" / .* \(0.0%\)", out)
+    assert "http://localhost:8081" not in out
