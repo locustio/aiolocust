@@ -124,6 +124,7 @@ class Runner:
         self.users = users
         self.host = host
         self.iteration_counter = SafeCounter(iterations)
+        self.forced_shutdown_timer = threading.Timer(SHUTDOWN_TIMEOUT, shutdown_timeout)
         self.tracer = trace.get_tracer("aiolocust")
         config = config or {}
 
@@ -164,13 +165,30 @@ class Runner:
             await asyncio.sleep(2)
 
     def shutdown(self, reason=None):
-        logger.info(f"Shutting down ({reason or 'no reason given'})")
+        global forced_shutdown_timer
         if not self.running:
             logger.debug("Already shutting down, ignoring shutdown() call")
             return
+
+        logger.info(f"Shutting down ({reason or 'no reason given'})")
+        self.forced_shutdown_timer.start()
+
         self.running = False
-        forced_shutdown_timer = threading.Timer(SHUTDOWN_TIMEOUT, shutdown_timeout)
-        forced_shutdown_timer.start()
+
+        for user in list(self.running_users):
+            user.running = False
+
+        for worker in self.workers:
+            worker.loop.call_soon_threadsafe(lambda: None)
+
+    def finalize_shutdown(self):
+        global forced_shutdown_timer
+        for fut in self.futures:
+            _ = fut.result()
+
+        metrics.get_meter_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
+        _logs.get_logger_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
+
         # # wake up event loops
         # for w in self.workers:
         #     w.loop.call_soon_threadsafe(lambda: None)
@@ -178,8 +196,6 @@ class Runner:
             _ = fut.result()
         logger.debug("Shutdown complete. Total iteration count: %d", self.iteration_counter.value)
         # flush otel
-        metrics.get_meter_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
-        _logs.get_logger_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
 
         # metrics.get_meter_provider().force_flush(timeout_millis=1000)  # pyright: ignore[reportAttributeAccessIssue]
         # logger.debug("Meter provider shut down")
@@ -187,7 +203,7 @@ class Runner:
         # print("Logger provider shut down")
         # trace.get_tracer_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
         # logger.debug("Tracer provider shut down")
-        forced_shutdown_timer.cancel()
+        self.forced_shutdown_timer.cancel()
 
     async def user_loop(self, user_instance: User):
         async with user_instance.cm():
@@ -287,6 +303,7 @@ class Runner:
             self.html_report.parent.mkdir(parents=True, exist_ok=True)
             report_console.save_html(str(self.html_report), inline_styles=True)
 
+        self.finalize_shutdown()
         for w in self.workers:
             w.stop()
 
