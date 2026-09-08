@@ -84,7 +84,7 @@ def desired_user_count(stages: list[Stage], elapsed: float) -> int | None:
 
 def shutdown_timeout():
     logger.warning("Shutdown timed out")
-    os._exit(1)
+    os._exit(124)  # GNU timeout EXIT_TIMEDOUT code
 
 
 class LoopWorker(threading.Thread):
@@ -221,10 +221,10 @@ class Runner:
                     stats.record_error(str(e))
                     logger.exception(e)
 
-    def signal_handler(self, _sig, _frame):
+    def signal_handler(self, signal: int, _frame):
         if not self.running:
             # probably repeat signal, just exit immediately
-            os._exit(1)
+            os._exit(128 + signal)  # this is linux standard, apparently
         print()
         self.shutdown("got SIGINT/CTRL-C")
 

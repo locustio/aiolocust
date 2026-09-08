@@ -432,4 +432,4 @@ async def run(user):
             output = stdout.decode(errors="replace")
             print(output)
             assert "Shutdown timed out" in err
-            assert await proc.wait() == 1
+            assert await proc.wait() == 124
