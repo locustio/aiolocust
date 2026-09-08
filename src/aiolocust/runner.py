@@ -178,9 +178,6 @@ class Runner:
         for user in list(self.running_users):
             user.running = False
 
-        for worker in self.workers:
-            worker.loop.call_soon_threadsafe(lambda: None)
-
     def finalize_shutdown(self):
         global forced_shutdown_timer
         for fut in self.futures:
