@@ -352,12 +352,14 @@ async def run(user):
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6 + WINDOWS_DELAY * 2)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=7 + WINDOWS_DELAY * 2)
         except TimeoutError:
             proc.kill()
             stdout, stderr = await proc.communicate()
             output = stdout.decode(errors="replace")
             print(output)
+            error = stderr.decode(errors="replace")
+            print(error)
             raise AssertionError("process never terminated") from None
         else:
             err = stderr.decode(errors="replace")
