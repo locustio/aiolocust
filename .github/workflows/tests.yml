@@ -162,7 +162,10 @@ jobs:
 
   publish_pypi:
     name: Publish to PyPI
-    needs: [ruff-pyright-pytestlinux-and-mitmproxy-recording, macos]
+    needs:
+      - ruff-pyright-pytestlinux-and-mitmproxy-recording
+      - macos
+      - windows
     if: github.repository_owner == 'locustio' && startsWith(github.event.ref,
       'refs/tags')
     runs-on: ubuntu-latest
