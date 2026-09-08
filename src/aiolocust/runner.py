@@ -46,6 +46,7 @@ try:
 except ImportError:
     EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)
 
+SHUTDOWN_TIMEOUT = float(os.getenv("LOCUST_SHUTDOWN_TIMEOUT", "30"))
 
 # We're going to inherit from ClientSession, even though it is considered internal,
 # Because we dont want to take the performance hit and typing issues of wrapping every method
@@ -79,6 +80,11 @@ def desired_user_count(stages: list[Stage], elapsed: float) -> int | None:
         previous_user_count = stage.target
 
     return None
+
+
+def shutdown_timeout():
+    logger.warning("Shutdown timed out")
+    os._exit(1)
 
 
 class LoopWorker(threading.Thread):
@@ -163,6 +169,9 @@ class Runner:
             logger.debug("Already shutting down, ignoring shutdown() call")
             return
         self.running = False
+        print(os.getenv("LOCUST_SHUTDOWN_TIMEOUT"))
+        forced_shutdown_timer = threading.Timer(SHUTDOWN_TIMEOUT, shutdown_timeout)
+        forced_shutdown_timer.start()
         # # wake up event loops
         # for w in self.workers:
         #     w.loop.call_soon_threadsafe(lambda: None)
