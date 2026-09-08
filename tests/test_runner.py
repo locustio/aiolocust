@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 import aiohttp
 from utils import assert_search
@@ -187,6 +188,25 @@ def test_base_url_gets_removed_from_request_name(http_server, capteesys):  # noq
                 pass
 
     Runner([TestUser], iterations=1, host="http://localhost:8081").run_test()
+    out, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in out
+    assert_search(r" / .* \(0.0%\)", out)
+    assert "http://localhost:8081" not in out
+
+
+def test_duration_shorter_than_rampup(http_server, capteesys):  # noqa: ARG001
+    class TestUser(HttpUser):
+        async def run(self):
+            async with self.client.get("/") as resp:
+                pass
+
+    runner = Runner([TestUser], user_count=2, duration=1, rate=0.1, host="http://localhost:8081")
+    thread = threading.Thread(target=runner.run_test, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive(), "Runner.run_test() took longer than 5 seconds to complete"
+
     out, err = capteesys.readouterr()
     assert err == ""
     assert "Summary" in out
