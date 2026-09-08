@@ -169,7 +169,6 @@ class Runner:
             logger.debug("Already shutting down, ignoring shutdown() call")
             return
         self.running = False
-        print(os.getenv("LOCUST_SHUTDOWN_TIMEOUT"))
         forced_shutdown_timer = threading.Timer(SHUTDOWN_TIMEOUT, shutdown_timeout)
         forced_shutdown_timer.start()
         # # wake up event loops
