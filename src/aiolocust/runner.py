@@ -188,6 +188,7 @@ class Runner:
         # print("Logger provider shut down")
         # trace.get_tracer_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
         # logger.debug("Tracer provider shut down")
+        forced_shutdown_timer.cancel()
 
     async def user_loop(self, user_instance: User):
         async with user_instance.cm():
