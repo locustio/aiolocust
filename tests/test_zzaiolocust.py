@@ -6,7 +6,9 @@ import signal
 import unittest
 from tempfile import TemporaryDirectory
 
-from utils import WINDOWS_DELAY, assert_search
+from utils import assert_search
+
+WINDOWS_DELAY = 1 if os.name == "nt" else 0
 
 
 @unittest.skipIf(os.name == "nt", reason="otel instrumentation seems to have some issues with freethreading on Windows")
