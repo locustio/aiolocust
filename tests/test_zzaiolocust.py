@@ -289,13 +289,13 @@ async def test_unhandled_error_logging(http_server):  # noqa: ARG001
 import asyncio
 
 async def run(user):
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     raise Exception("an error")
 """)
         proc = await asyncio.create_subprocess_exec(
             "aiolocust",
             tempfile.name,
-            "--duration",
+            "--iterations",
             "1",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
