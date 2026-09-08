@@ -165,7 +165,6 @@ class Runner:
             await asyncio.sleep(2)
 
     def shutdown(self, reason=None):
-        global forced_shutdown_timer
         if not self.running:
             logger.debug("Already shutting down, ignoring shutdown() call")
             return
@@ -179,7 +178,6 @@ class Runner:
             user.running = False
 
     def finalize_shutdown(self):
-        global forced_shutdown_timer
         for fut in self.futures:
             _ = fut.result()
 
