@@ -235,6 +235,7 @@ async def run(user):
             assert "Shutting down (got SIGINT/CTRL-C)" in err
 
 
+@unittest.skipIf(os.name == "nt", reason="Signal handling on windows is hard")
 async def test_sigint_doesnt_wait_for_otel_to_connect(http_server):  # noqa: ARG001
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
