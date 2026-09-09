@@ -121,6 +121,14 @@ def main(
     for key, value in locals().items():
         setattr(aiolocust.config, key, value)
 
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
+        except Exception:
+            logger.debug("Could not enable Windows CTRL-C handling", exc_info=True)
+
     log_level_id = getattr(logging, log_level.value.upper())
 
     configure_telemetry()

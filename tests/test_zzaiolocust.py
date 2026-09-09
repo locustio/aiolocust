@@ -223,7 +223,7 @@ async def run(user):
         try:
             await asyncio.sleep(1)
             if os.name == "nt":
-                proc.send_signal(signal.CTRL_BREAK_EVENT)
+                proc.send_signal(signal.CTRL_C_EVENT)
             else:
                 proc.send_signal(signal.SIGINT)
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3)
@@ -271,7 +271,7 @@ async def run(user):
         try:
             await asyncio.sleep(2)
             if os.name == "nt":
-                proc.send_signal(signal.CTRL_BREAK_EVENT)
+                proc.send_signal(signal.CTRL_C_EVENT)
             else:
                 proc.send_signal(signal.SIGINT)
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
