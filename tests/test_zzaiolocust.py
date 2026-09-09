@@ -201,7 +201,6 @@ async def run(user):
             assert await proc.wait() == 0
 
 
-@unittest.skipIf(os.name == "nt", reason="Signal handling on windows is hard")
 async def test_sigint(http_server):  # noqa: ARG001
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
@@ -224,7 +223,7 @@ async def run(user):
         try:
             await asyncio.sleep(1)
             if os.name == "nt":
-                proc.send_signal(signal.CTRL_C_EVENT)
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
             else:
                 proc.send_signal(signal.SIGINT)
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3)
@@ -244,7 +243,6 @@ async def run(user):
             assert "Shutting down (got SIGINT/CTRL-C)" in err
 
 
-@unittest.skipIf(os.name == "nt", reason="Signal handling on windows is hard")
 async def test_sigint_doesnt_wait_for_otel_to_connect(http_server):  # noqa: ARG001
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
@@ -273,7 +271,7 @@ async def run(user):
         try:
             await asyncio.sleep(2)
             if os.name == "nt":
-                proc.send_signal(signal.CTRL_C_EVENT)
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
             else:
                 proc.send_signal(signal.SIGINT)
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)

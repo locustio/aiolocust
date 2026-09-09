@@ -65,6 +65,8 @@ if sys._is_gil_enabled():
 
 original_sigint_handler = signal.getsignal(signal.SIGINT)
 original_sigterm_handler = signal.getsignal(signal.SIGTERM)
+if hasattr(signal, "SIGBREAK"):
+    original_sigbreak_handler = signal.getsignal(signal.SIGBREAK)
 
 
 def desired_user_count(stages: list[Stage], elapsed: float) -> int | None:
@@ -115,6 +117,8 @@ class Runner:
     ):
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+        if hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, self.signal_handler)
         self.running = False
         self.start_time = 0
         events.request.add_listener(stats.record_request)
