@@ -121,6 +121,13 @@ def main(
     for key, value in locals().items():
         setattr(aiolocust.config, key, value)
 
+    if os.name == "nt":
+        import ctypes
+
+        # Re-enable CTRL-C handling.
+        # Happens when we were launched as a subprocess with CREATE_NEW_PROCESS_GROUP, like within pytest
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
+
     log_level_id = getattr(logging, log_level.value.upper())
 
     configure_telemetry()
