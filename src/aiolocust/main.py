@@ -122,12 +122,11 @@ def main(
         setattr(aiolocust.config, key, value)
 
     if os.name == "nt":
-        try:
-            import ctypes
+        import ctypes
 
-            ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
-        except Exception:
-            logger.debug("Could not enable Windows CTRL-C handling", exc_info=True)
+        # Re-enable CTRL-C handling.
+        # Happens when we were launched as a subprocess with CREATE_NEW_PROCESS_GROUP, like within pytest
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
 
     log_level_id = getattr(logging, log_level.value.upper())
 
