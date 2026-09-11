@@ -17,6 +17,9 @@ class EventHook[**P]:
             pass  # ignore duplicate listener registration
         return func
 
+    def remove_listener(self, func: Callable[P, None]) -> None:
+        self._handlers.remove(func)
+
     def fire(self, *args: P.args, **kwargs: P.kwargs) -> None:
         for handler in self._handlers:
             handler(*args, **kwargs)

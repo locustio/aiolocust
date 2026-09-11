@@ -144,6 +144,14 @@ aiolocust supports standard OTel env vars for exporter configuration, for exampl
 OTEL_TRACES_EXPORTER=console aiolocust
 ```
 
+Use `LOCUST_METRIC_ATTRIBUTES` to add stable, filterable attributes to every aiolocust metric data point:
+
+```text
+LOCUST_METRIC_ATTRIBUTES="environment=staging,test.suite=checkout" aiolocust
+```
+
+The value is a comma-separated list of `key=value` pairs. `name` is set by aiolocust for each request, and `error.type` is set only for failed requests. Keep these attributes low-cardinality: environment, region, team, and test suite are suitable; request IDs, timestamps, and other per-request values are not.
+
 Here's a more complete example, for Splunk:
 
 ```text

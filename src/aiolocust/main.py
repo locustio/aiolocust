@@ -13,7 +13,7 @@ import click
 import typer
 
 import aiolocust
-from aiolocust.config import LogLevel
+from aiolocust.config import LogLevel, get_metric_attributes
 from aiolocust.otel import configure_telemetry
 
 app = typer.Typer(add_completion=False)
@@ -123,6 +123,7 @@ def main(
 
     log_level_id = getattr(logging, log_level.value.upper())
 
+    metric_attributes = get_metric_attributes()
     configure_telemetry()
 
     # delayed imports so that logging is configured first
@@ -222,6 +223,7 @@ def main(
             config=config,
             event_loops=event_loops,
             html_report=html_report,
+            metric_attributes=metric_attributes,
         )
         r.run_test()
     else:

@@ -169,16 +169,17 @@ def test_current_user_count_gauge(http_server, monkeypatch):  # noqa: ARG001
         async def run(self):
             await asyncio.sleep(0.01)
 
-    gauge_values = []
+    gauge_observations = []
 
     def _record_gauge(value, attributes=None, context=None):  # noqa: ARG001
-        gauge_values.append(value)
+        gauge_observations.append((value, attributes))
 
     monkeypatch.setattr("aiolocust.runner.current_users_gauge.set", _record_gauge)
-    Runner([TestUser], user_count=2, duration=1).run_test()
+    Runner([TestUser], user_count=2, duration=1, metric_attributes={"environment": "test"}).run_test()
 
-    assert gauge_values[0] == 0
-    assert max(gauge_values) == 2
+    assert gauge_observations[0][0] == 0
+    assert max(value for value, _ in gauge_observations) == 2
+    assert all(attributes == {"environment": "test"} for _, attributes in gauge_observations)
 
 
 def test_base_url_gets_removed_from_request_name(http_server, capteesys):  # noqa: ARG001
