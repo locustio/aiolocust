@@ -5,6 +5,7 @@ import pytest
 from rich.console import Console
 from utils import assert_search
 
+from aiolocust import otel
 from aiolocust.datatypes import Request
 from aiolocust.otel import configure_telemetry
 from aiolocust.stats import StatsFormatter, record_request
@@ -13,6 +14,61 @@ from aiolocust.stats import StatsFormatter, record_request
 @pytest.fixture(scope="module", autouse=True)
 def configure_test_telemetry():
     configure_telemetry()
+
+
+def test_metric_attributes():
+    StatsFormatter()
+
+    record_request(
+        Request("GET /checkout", 0.1, 0.2, None),
+        metric_attributes={
+            "environment": "staging",
+            "test.suite": "checkout",
+            "name": "custom",
+            "error.type": "custom",
+        },
+    )
+    record_request(
+        Request("GET /checkout", 0.1, 0.2, True),
+        metric_attributes={
+            "environment": "staging",
+            "test.suite": "checkout",
+            "name": "custom",
+            "error.type": "custom",
+        },
+    )
+
+    metrics_data = otel.reader.get_metrics_data()
+    points = [
+        point
+        for resource_metric in (metrics_data.resource_metrics if metrics_data else [])
+        for scope_metric in resource_metric.scope_metrics
+        for metric in scope_metric.metrics
+        if metric.name == "locust.client.duration"
+        for point in metric.data.data_points
+    ]
+    assert len(points) == 2
+    assert points[0].attributes == {
+        "environment": "staging",
+        "test.suite": "checkout",
+        "name": "GET /checkout",
+    }
+    assert points[1].attributes == {
+        "environment": "staging",
+        "test.suite": "checkout",
+        "name": "GET /checkout",
+        "error.type": "bool",
+    }
+
+
+@pytest.mark.parametrize("value", ["not-valid", "=staging", "environment=staging,environment=production"])
+def test_invalid_metric_attributes(monkeypatch, value):
+    monkeypatch.setenv("LOCUST_METRIC_ATTRIBUTES", value)
+
+    with pytest.raises(ValueError, match="LOCUST_METRIC_ATTRIBUTES"):
+        from aiolocust.config import get_metric_attributes
+
+        get_metric_attributes()
 
 
 async def test_get_table():

@@ -1,6 +1,7 @@
 import os
 import time
 from collections import defaultdict
+from collections.abc import Mapping
 from threading import Lock
 from types import TracebackType
 
@@ -29,8 +30,9 @@ def record_error(message: str) -> None:
         error_counter[message] += 1
 
 
-def record_request(req: Request) -> None:
+def record_request(req: Request, metric_attributes: Mapping[str, str] | None = None) -> None:
     attributes = {
+        **(metric_attributes or {}),
         "name": req.name,
         # the rest of these remain to be implemented
         # http.method=GET,
@@ -39,6 +41,7 @@ def record_request(req: Request) -> None:
         # net.peer.port=8080,
         # http.status_code=200}
     }
+    attributes.pop("error.type", None)
     if req.error:
         # error.type is propagated to otel, but it also picked up when calculating command line stats table
         attributes["error.type"] = req.error.__class__.__name__

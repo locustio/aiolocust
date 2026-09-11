@@ -8,7 +8,9 @@ import sys
 import threading
 import time
 import warnings
+from collections.abc import Mapping
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 from aiohttp import ClientOSError
@@ -112,12 +114,15 @@ class Runner:
         config: dict | None = None,
         event_loops: int | None = None,
         html_report: Path | None = None,
+        metric_attributes: Mapping[str, str] | None = None,
     ):
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         self.running = False
         self.start_time = 0
-        events.request.add_listener(stats.record_request)
+        self.metric_attributes = dict(metric_attributes or {})
+        self._record_request = partial(stats.record_request, metric_attributes=self.metric_attributes)
+        events.request.add_listener(self._record_request)
         configure_telemetry()
         self.sf = stats.StatsFormatter()
         self.console = Console()
@@ -190,6 +195,7 @@ class Runner:
         for fut in self.futures:
             _ = fut.result()
 
+        events.request.remove_listener(self._record_request)
         metrics.get_meter_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
         _logs.get_logger_provider().shutdown()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -264,7 +270,7 @@ class Runner:
 
         self.start_time = time.time()
         self.current_user_count = 0
-        current_users_gauge.set(self.current_user_count)
+        current_users_gauge.set(self.current_user_count, attributes=self.metric_attributes)
 
         while self.running:
             await asyncio.sleep(0.01)
@@ -282,7 +288,7 @@ class Runner:
                 for i in range(-change):
                     self.stop_user()
             self.current_user_count = new_user_count
-            current_users_gauge.set(self.current_user_count)
+            current_users_gauge.set(self.current_user_count, attributes=self.metric_attributes)
 
         if self.running:  # if we exited the loop without a signal, we should still do a proper shutdown
             self.shutdown("run_test loop exited - possibly due to an exception?")
