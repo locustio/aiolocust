@@ -453,7 +453,7 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         "aiolocust",
         "examples/limiters.py",
         "-d",
-        "3",
+        "4",
         "-u",
         "10",
         stdout=asyncio.subprocess.PIPE,
