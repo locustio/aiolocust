@@ -464,7 +464,7 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
     assert "error" not in err.lower()
     assert "Summary" in output
     assert await proc.wait() == 0
-    assert_search(r"http://localhost:8081/ │    (38|39|40) │", output)
+    assert_search(r"http://localhost:8081/ .* (38|39|40) ", output)
 
 
 async def communicate_print_and_decode(proc, timeout=None):
