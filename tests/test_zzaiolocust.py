@@ -453,15 +453,18 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         "aiolocust",
         "examples/limiters.py",
         "-d",
-        "1",
+        "3",
+        "-u",
+        "10",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     output, err = await communicate_print_and_decode(proc, 6)
     assert "Shutting down" in err
+    assert "error" not in err.lower()
     assert "Summary" in output
     assert await proc.wait() == 0
-    assert_search(r"http://localhost:8081/ │     5 │", output)
+    assert_search(r"http://localhost:8081/ │    30 │", output)
 
 
 async def communicate_print_and_decode(proc, timeout=None):
