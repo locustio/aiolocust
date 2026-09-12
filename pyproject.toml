@@ -14,6 +14,7 @@ dependencies = [
     "opentelemetry-instrumentation-aiohttp-client>=0.61b0",
     "opentelemetry-instrumentation-logging>=0.61b0",
     "click>=8.4.0",
+    "pyrate-limiter>=4.5.0",
 ]
 readme = "README.md"
 authors = [{ name = "Lars Holmberg", email = "lars.holmberg@redshirt.se" }]

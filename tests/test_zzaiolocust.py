@@ -446,3 +446,28 @@ async def run(user):
             print(output)
             assert "Shutdown timed out" in err
             assert await proc.wait() == 124
+
+
+async def test_rate_limiting(http_server):  # noqa: ARG001
+    proc = await asyncio.create_subprocess_exec(
+        "aiolocust",
+        "examples/limiters.py",
+        "-d",
+        "1",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    output, err = await communicate_print_and_decode(proc, 6)
+    assert "Shutting down" in err
+    assert "Summary" in output
+    assert await proc.wait() == 0
+    assert_search(r"http://localhost:8081/ │     5 │", output)
+
+
+async def communicate_print_and_decode(proc, timeout=None):
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    err = stderr.decode(errors="replace")
+    print(err)
+    output = stdout.decode(errors="replace")
+    print(output)
+    return output, err
