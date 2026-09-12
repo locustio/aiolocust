@@ -68,6 +68,23 @@ To save the final Rich summary as a static HTML report:
 aiolocust --duration 30 --users 100 --html-report report.html
 ```
 
+## Rate limiting
+
+If you want to set a target request rate, rather than relying solely on user count and static sleeps to control the load, use [pyrate](https://pyratelimiter.readthedocs.io/en/stable/).
+
+For convenience, aiolocust provides a pre-packaged decorator, useable as such:
+
+```text
+from pyrate_limiter import Duration
+from aiolocust import HttpUser, rate_limit
+
+class MyUser(HttpUser):
+    @rate_limit(10, Duration.SECOND)
+    async def run(self):
+        async with self.client.get("http://localhost:8081/") as resp:
+            pass
+```
+
 ## Record a locustfile from browser session or other app
 
 If you don't want to code your locustfile from scratch, you can use [mitmproxy](https://docs.mitmproxy.org/stable/) and our custom script to easily generate locustfiles from live traffic:

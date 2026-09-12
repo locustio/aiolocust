@@ -451,7 +451,7 @@ async def run(user):
 async def test_rate_limiting(http_server):  # noqa: ARG001
     proc = await asyncio.create_subprocess_exec(
         "aiolocust",
-        "examples/limiters.py",
+        "examples/rate_limit.py",
         "-d",
         "4",
         "-u",
