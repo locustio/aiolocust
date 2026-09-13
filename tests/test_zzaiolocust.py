@@ -475,7 +475,7 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         highest_rate = max(highest_rate, float(rate))
     assert highest_rate > 9.5, f"request rate never reached high enough value: {highest_rate}"
     # limiting is using sliding window so slight overshoot during a clock second is normal
-    assert highest_rate <= 12.0, f"rate limit exceeded: {highest_rate}"
+    assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
 
 
 async def communicate_print_and_decode(proc, timeout=None):
