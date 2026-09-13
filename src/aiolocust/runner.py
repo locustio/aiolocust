@@ -48,6 +48,7 @@ except ImportError:
     EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)
 
 SHUTDOWN_TIMEOUT = float(os.getenv("LOCUST_SHUTDOWN_TIMEOUT", "30"))
+STATS_PRINT_INTERVAL = float(os.getenv("LOCUST_STATS_PRINT_INTERVAL", "2"))
 
 # We're going to inherit from ClientSession, even though it is considered internal,
 # Because we dont want to take the performance hit and typing issues of wrapping every method
@@ -193,7 +194,7 @@ class Runner:
             if not first:
                 self.console.print(self.sf.get_table())
             first = False
-            await asyncio.sleep(2)
+            await asyncio.sleep(STATS_PRINT_INTERVAL)
 
     def shutdown(self, reason=None):
         if not self.running:
