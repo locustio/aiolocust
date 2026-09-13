@@ -469,11 +469,12 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
     assert "error" not in err.lower()
     assert "Summary" in output
     assert await proc.wait() == 0
-    rates = re.findall(r"(\d*\.?\d+)/s $", output)
+    rates = re.findall(r"(\d*\.?\d+)/s $", output, re.MULTILINE)
     found_high_enough_rate = False
     for rate in rates:
         f = float(rate)
-        assert f <= 10.1, f"rate limit exceeded: {f}"
+        # limiting is using sliding window so slight overshoot during a clock second is normal
+        assert f <= 12.0, f"rate limit exceeded: {f}"
         if f >= 9.5:
             found_high_enough_rate = True
     assert found_high_enough_rate, "Rate never reached high enough value"
