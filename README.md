@@ -72,7 +72,7 @@ aiolocust --duration 30 --users 100 --html-report report.html
 
 If you want to set a target request rate, rather than relying solely on user count and static sleeps to control the load, use [pyrate](https://pyratelimiter.readthedocs.io/en/stable/).
 
-For convenience, aiolocust provides a pre-packaged decorator, useable as such:
+For convenience, aiolocust provides a pre-packaged decorator:
 
 ```text
 from pyrate_limiter import Duration
