@@ -453,18 +453,29 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         "aiolocust",
         "examples/rate_limit.py",
         "-d",
-        "4",
+        "3",
         "-u",
         "10",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env={
+            "LOCUST_STATS_PRINT_INTERVAL": "1",
+            **os.environ,
+        },
     )
     output, err = await communicate_print_and_decode(proc, 6)
     assert "Shutting down" in err
     assert "error" not in err.lower()
     assert "Summary" in output
     assert await proc.wait() == 0
-    assert_search(r"http://localhost:8081/ .* (38|39|40) ", output)
+    rates = re.findall(r"(\d*\.?\d+)/s $", output)
+    found_high_enough_rate = False
+    for rate in rates:
+        f = float(rate)
+        assert f <= 10.1, f"rate limit exceeded: {f}"
+        if f >= 9.5:
+            found_high_enough_rate = True
+    assert found_high_enough_rate, "Rate never reached high enough value"
 
 
 async def communicate_print_and_decode(proc, timeout=None):
