@@ -1,6 +1,14 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from collections.abc import Coroutine as AbcCoroutine
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from functools import wraps
+from threading import Lock
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+
+P = ParamSpec("P")
+R = TypeVar("R")
+from pyrate_limiter import BucketAsyncWrapper, Duration, InMemoryBucket, Limiter, Rate
 
 
 class User(ABC):
@@ -9,7 +17,7 @@ class User(ABC):
         self.running = True
 
     @abstractmethod
-    async def run(self): ...
+    def run(self) -> AbcCoroutine[Any, Any, None]: ...
 
     @asynccontextmanager
     async def cm(self):
@@ -40,4 +48,25 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = ["User", "HttpUser", "LocustClientSession", "Runner"]
+lock = Lock()
+
+
+def rate_limit(rate: int, duration: Duration = Duration.SECOND):
+    def decorator(func: Callable[P, AbcCoroutine[Any, Any, R]]):
+        limiter = None
+
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            nonlocal limiter
+            with lock:
+                if limiter is None:
+                    limiter = Limiter(BucketAsyncWrapper(InMemoryBucket([Rate(rate, duration)])))
+            await limiter.try_acquire_async(name=func.__qualname__)
+            return await func(*args, **kwargs)
+
+        return cast(Callable[P, AbcCoroutine[Any, Any, R]], async_wrapper)
+
+    return decorator
+
+
+__all__ = ["User", "HttpUser", "LocustClientSession", "Runner", "rate_limit"]

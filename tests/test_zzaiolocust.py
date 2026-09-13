@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import re
 import signal
 import unittest
 from tempfile import TemporaryDirectory
@@ -446,3 +447,43 @@ async def run(user):
             print(output)
             assert "Shutdown timed out" in err
             assert await proc.wait() == 124
+
+
+async def test_rate_limiting(http_server):  # noqa: ARG001
+    proc = await asyncio.create_subprocess_exec(
+        "aiolocust",
+        "examples/rate_limit.py",
+        "-d",
+        "3",
+        "-u",
+        "10",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env={
+            "LOCUST_STATS_PRINT_INTERVAL": "1",
+            **os.environ,
+        },
+    )
+    output, err = await communicate_print_and_decode(proc, 6)
+    assert "Shutting down" in err
+    assert "error" not in err.lower()
+    assert "Summary" in output
+    assert await proc.wait() == 0
+    highest_rate = 0.0
+    for line in output.splitlines():
+        match = re.search(r"(\d*\.?\d+)/s $", line)
+        if match:
+            rate = float(match.group(1))
+            highest_rate = max(highest_rate, rate)
+    assert highest_rate > 9.5, f"request rate never reached high enough value: {highest_rate}"
+    # limiting is using sliding window so slight overshoot during a clock second is normal
+    assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
+
+
+async def communicate_print_and_decode(proc, timeout=None):
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    err = stderr.decode(errors="replace")
+    print(err)
+    output = stdout.decode(errors="replace")
+    print(output)
+    return output, err

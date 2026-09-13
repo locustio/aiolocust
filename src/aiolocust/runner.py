@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import warnings
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
 from pathlib import Path
 
@@ -47,6 +48,7 @@ except ImportError:
     EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)
 
 SHUTDOWN_TIMEOUT = float(os.getenv("LOCUST_SHUTDOWN_TIMEOUT", "30"))
+STATS_PRINT_INTERVAL = float(os.getenv("LOCUST_STATS_PRINT_INTERVAL", "2"))
 
 # We're going to inherit from ClientSession, even though it is considered internal,
 # Because we dont want to take the performance hit and typing issues of wrapping every method
@@ -95,9 +97,30 @@ class LoopWorker(threading.Thread):
     def run(self):
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
+        self.loop.close()
+
+    async def _cancel_pending_tasks(self):
+        # Cancel any background tasks (e.g. rate limiter) before stopping the loop.
+        # Without this, we would get something like:
+        # Exception ignored while calling asyncio function ... ImportError: sys.meta_path is None, Python is likely shutting down
+        pending_tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task() and not task.done()]
+        for task in pending_tasks:
+            task.cancel()
+        if pending_tasks:
+            await asyncio.gather(*pending_tasks, return_exceptions=True)
 
     def stop(self):
+        if self.loop.is_closed():
+            return
+
+        try:
+            fut = asyncio.run_coroutine_threadsafe(self._cancel_pending_tasks(), self.loop)
+            fut.result(timeout=2)
+        except RuntimeError, FutureTimeoutError:
+            logger.info("Failed to fully drain worker loop tasks before stop", exc_info=True)
+
         self.loop.call_soon_threadsafe(self.loop.stop)
+        self.join(timeout=2)
 
 
 class Runner:
@@ -171,7 +194,7 @@ class Runner:
             if not first:
                 self.console.print(self.sf.get_table())
             first = False
-            await asyncio.sleep(2)
+            await asyncio.sleep(STATS_PRINT_INTERVAL)
 
     def shutdown(self, reason=None):
         if not self.running:

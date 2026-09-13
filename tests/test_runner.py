@@ -4,6 +4,7 @@ import threading
 import aiohttp
 from utils import assert_search
 
+from aiolocust import rate_limit
 from aiolocust.runner import Runner, Stage, desired_user_count
 from aiolocust.users.http import HttpUser, LocustClientSession
 
@@ -212,3 +213,17 @@ def test_duration_shorter_than_rampup(http_server, capteesys):  # noqa: ARG001
     assert "Summary" in out
     assert_search(r" / .* \(0.0%\)", out)
     assert "http://localhost:8081" not in out
+
+
+def test_rate_limiting(http_server, capteesys):  # noqa: ARG001
+    class TestUser(HttpUser):
+        @rate_limit(5)
+        async def run(self):
+            async with self.client.get("http://localhost:8081/") as resp:
+                pass
+
+    Runner([TestUser], 20, 1, host="http://localhost:8081").run_test()
+    out, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in out
+    assert_search(r" /[ ]+│[ ]+[5] .* \(0.0%\)", out)
