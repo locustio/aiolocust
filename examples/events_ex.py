@@ -28,11 +28,11 @@ def to_csv(request: Request) -> None:
 
 @events.shutdown_requested.add_listener
 def on_shutdown_request(runner: Runner) -> None:
-    print(f"{runner.iteration_counter.value} iterations")
+    print(f"Shutdown requested, {runner.iteration_counter.value} iterations")
 
 
 @events.shutdown_completed.add_listener
 def on_shutdown_complete(runner: Runner) -> None:
     print(runner.start_time - 1)
     print(time.time() + 2)
-    print("No new requests can ever happen after this point")
+    print("Shutdown completed, no new requests can ever happen after this point")
