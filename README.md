@@ -68,7 +68,7 @@ To save the final Rich summary as a static HTML report:
 aiolocust --duration 30 --users 100 --html-report report.html
 ```
 
-## Rate limiting
+## Rate limiting (experimental)
 
 If you want to set a target request rate, rather than relying solely on user count and static sleeps to control the load, use [pyrate](https://pyratelimiter.readthedocs.io/en/stable/).
 
