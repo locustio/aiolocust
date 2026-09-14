@@ -1,9 +1,11 @@
 import logging
 from collections.abc import Callable
-from typing import ParamSpec
+from typing import TYPE_CHECKING, ParamSpec
 
-from aiolocust import Runner
 from aiolocust.datatypes import Request
+
+if TYPE_CHECKING:
+    from aiolocust.runner import Runner
 
 P = ParamSpec("P")
 
@@ -30,8 +32,8 @@ class EventHook[**P]:
 
 startup = EventHook[[]]()
 request = EventHook[[Request]]()
-shutdown_requested = EventHook[[Runner]]()
-shutdown_completed = EventHook[[Runner]]()
+shutdown_requested = EventHook[["Runner"]]()
+shutdown_completed = EventHook[["Runner"]]()
 
 
 def _clear_handlers():
