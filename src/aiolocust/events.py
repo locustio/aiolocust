@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, ParamSpec
 from aiolocust.datatypes import Request
 
 if TYPE_CHECKING:
-    from aiolocust.runner import Runner
+    from aiolocust.runner import Runner  # noqa
 
 P = ParamSpec("P")
 
@@ -39,5 +39,5 @@ shutdown_completed = EventHook[["Runner"]]()
 def _clear_handlers():
     global startup, request, shutdown_requested, shutdown_completed
     startup = EventHook[[]]()
-    shutdown_requested = EventHook[[Runner]]()
-    shutdown_completed = EventHook[[Runner]]()
+    shutdown_requested = EventHook[["Runner"]]()
+    shutdown_completed = EventHook[["Runner"]]()
