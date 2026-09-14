@@ -97,6 +97,8 @@ jobs:
           set -x
           uv run aiolocust examples/events_ex.py --iterations 1 | tee locust_output.txt
           grep -E 'Request: http://localhost:8080/, TTLB:' locust_output.txt
+          grep -E 'Shutdown requested, 1 iterations' locust_output.txt
+          grep -E 'Shutdown completed, no new requests can ever happen after this point' locust_output.txt
           grep -E 'http://localhost:8080/,' requests.csv
           
 
