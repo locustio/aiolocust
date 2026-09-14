@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from typing import ParamSpec
 
+from aiolocust import Runner
 from aiolocust.datatypes import Request
 
 P = ParamSpec("P")
@@ -24,9 +25,11 @@ class EventHook[**P]:
 
 startup = EventHook[[]]()
 request = EventHook[[Request]]()
+shutdown = EventHook[[]]()
 
 
 def _clear_handlers():
-    global startup, request
+    global startup, request, shutdown
     startup = EventHook[[]]()
     request = EventHook[[Request]]()
+    shutdown = EventHook[[Runner]]()

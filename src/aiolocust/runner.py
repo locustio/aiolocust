@@ -202,6 +202,7 @@ class Runner:
             return
 
         logger.info(f"Shutting down ({reason or 'no reason given'})")
+        events.shutdown.fire(self)
         self.forced_shutdown_timer.start()
 
         self.running = False

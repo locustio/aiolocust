@@ -47,7 +47,7 @@ async def run(user):
         assert result.exit_code == 0
 
 
-def test_on_start():  # noqa: ARG001
+def test_on_start_and_shutdown():  # noqa: ARG001
     runner = CliRunner()
     with runner.isolated_filesystem():
         with open("my_locustfile.py", "w") as f:
@@ -59,12 +59,20 @@ def on_start():
 
 events.startup.add_listener(on_start)
 
+def on_shutdown(runner):
+    print("bar")
+    print(runner.iteration_counter.value)
+
+events.shutdown.add_listener(on_shutdown)
+
 class MyUser(HttpUser):
     async def run(self):
         pass
 """)
-        result = runner.invoke(app, ["my_locustfile.py", "--iterations", "1"])
+        result = runner.invoke(app, ["my_locustfile.py", "--iterations", "42"])
         assert "foo" in result.output
+        assert "bar" in result.output
+        assert "42" in result.output
         assert result.exit_code == 0
 
 

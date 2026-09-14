@@ -1,6 +1,6 @@
 import threading
 
-from aiolocust import HttpUser, events
+from aiolocust import HttpUser, Runner, events
 from aiolocust.datatypes import Request
 
 
@@ -23,3 +23,8 @@ f = open("requests.csv", "a", buffering=1)
 def to_csv(request: Request) -> None:
     with lock:
         f.write(f"{request.name},{request.ttlb:.3f},{request.error}\n")
+
+
+@events.shutdown.add_listener
+def on_shutdown(runner: Runner) -> None:
+    print(f"I did {runner.iteration_counter.value} iterations")
