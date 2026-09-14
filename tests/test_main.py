@@ -2,6 +2,7 @@ import os
 
 from typer.testing import CliRunner
 
+from aiolocust import events
 from aiolocust.main import app
 
 
@@ -85,7 +86,10 @@ class MyUser(HttpUser):
         else:
             print("on_start didn't seem to run?")
 """)
-        result = runner.invoke(app, ["my_locustfile.py", "--iterations", "42"])
+        try:
+            result = runner.invoke(app, ["my_locustfile.py", "--iterations", "42"])
+        finally:
+            events._clear_handlers()
         print(result.output)
         assert "xxx" in result.output
         assert not "on_start didn't" in result.output
