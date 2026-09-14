@@ -139,7 +139,7 @@ class Runner:
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         self.running = False
-        self.start_time = 0
+        self.start_time = 0.0
         events.request.add_listener(stats.record_request)
         configure_telemetry()
         self.sf = stats.StatsFormatter()
@@ -202,7 +202,7 @@ class Runner:
             return
 
         logger.info(f"Shutting down ({reason or 'no reason given'})")
-        events.shutdown.fire(self)
+        events.shutdown_requested.fire(self)
         self.forced_shutdown_timer.start()
 
         self.running = False
@@ -335,4 +335,4 @@ class Runner:
         for w in self.workers:
             w.stop()
 
-        return
+        events.shutdown_completed.fire(self)

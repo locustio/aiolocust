@@ -54,25 +54,46 @@ def test_on_start_and_shutdown():  # noqa: ARG001
             f.write("""
 from aiolocust import HttpUser, events
 
+started = False
+
+@events.startup.add_listener
 def on_start():
+    global started
+    started = True
     print("foo")
 
-events.startup.add_listener(on_start)
+@events.shutdown_requested.add_listener
+def on_shutdown_request_crashing(runner):
+    raise Exception("this exception will be logged, but mustn't prevent shutdown")
 
-def on_shutdown(runner):
+@events.shutdown_requested.add_listener
+def on_shutdown_request(runner):
     print("bar")
+    assert runner.running
+    assert started
     print(runner.iteration_counter.value)
 
-events.shutdown.add_listener(on_shutdown)
+@events.shutdown_completed.add_listener
+def on_shutdown_complete(runner):
+    assert not runner.running
+    print("baz")
 
 class MyUser(HttpUser):
     async def run(self):
-        pass
+        if started:
+            print("xxx")
+        else:
+            print("on_start didn't seem to run?")
 """)
         result = runner.invoke(app, ["my_locustfile.py", "--iterations", "42"])
+        print(result.output)
+        assert "xxx" in result.output
+        assert not "on_start didn't" in result.output
         assert "foo" in result.output
         assert "bar" in result.output
         assert "42" in result.output
+        assert "baz" in result.output
+        assert "this exception will be logged, but mustn't prevent shutdown" in result.output
         assert result.exit_code == 0
 
 

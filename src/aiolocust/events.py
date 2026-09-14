@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from typing import ParamSpec
 
@@ -10,6 +11,7 @@ P = ParamSpec("P")
 class EventHook[**P]:
     def __init__(self):
         self._handlers: list[Callable[P, None]] = []
+        self._logger = logging.getLogger(__name__)  # get logger here, once it has been initialized
 
     def add_listener(self, func: Callable[P, None]) -> Callable[P, None]:
         if func not in self._handlers:
@@ -20,16 +22,20 @@ class EventHook[**P]:
 
     def fire(self, *args: P.args, **kwargs: P.kwargs) -> None:
         for handler in self._handlers:
-            handler(*args, **kwargs)
+            try:
+                handler(*args, **kwargs)
+            except Exception as e:
+                self._logger.exception(e)
 
 
 startup = EventHook[[]]()
 request = EventHook[[Request]]()
-shutdown = EventHook[[]]()
+shutdown_requested = EventHook[[Runner]]()
+shutdown_completed = EventHook[[Runner]]()
 
 
 def _clear_handlers():
-    global startup, request, shutdown
+    global startup, request, shutdown_requested, shutdown_completed
     startup = EventHook[[]]()
-    request = EventHook[[Request]]()
-    shutdown = EventHook[[Runner]]()
+    shutdown_requested = EventHook[[Runner]]()
+    shutdown_completed = EventHook[[Runner]]()
