@@ -106,19 +106,18 @@ class LimiterPortal:
 def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int = 2):
     limiter = LimiterPortal(Rate(rate, duration, burst))
 
-    def decorator(
+    def decorate(
         func: Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R]],
     ) -> Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R | None]]:
         @wraps(func)
-        async def async_wrapper(self: UserT, *args: P.args, **kwargs: P.kwargs) -> R | None:
+        async def wrapper(self: UserT, *args: P.args, **kwargs: P.kwargs) -> R | None:
             if await limiter.acquire() and self.running:
                 return await func(self, *args, **kwargs)
-            else:
-                limiter.shutdown_event.set()  # this will stop any concurrent aquire calls
+            limiter.shutdown_event.set()  # this will stop any concurrent aquire calls
 
-        return async_wrapper
+        return wrapper
 
-    return decorator
+    return decorate
 
 
 __all__ = ["User", "HttpUser", "LocustClientSession", "Runner", "rate_limit"]
