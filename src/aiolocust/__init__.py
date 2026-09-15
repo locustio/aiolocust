@@ -58,6 +58,7 @@ class LimiterPortal:
     def __init__(self, rate: Rate):
         self._loop = asyncio.new_event_loop()
         self._ready = threading.Event()
+        self.shutdown_event = threading.Event()
 
         self._thread = threading.Thread(
             target=self._run,
@@ -69,23 +70,32 @@ class LimiterPortal:
 
     def _run(self, rate: Rate):
         asyncio.set_event_loop(self._loop)
-
-        # Limiter is created and used only on this event loop.
         self._limiter = Limiter(StateBucket([rate], algorithm=TokenBucket()))
-
         self._ready.set()
         self._loop.run_forever()
 
-    async def acquire(self, key: str = "global"):
-        # Schedule the actual Pyrate acquisition on the dedicated loop.
-        future = asyncio.run_coroutine_threadsafe(
-            self._limiter.try_acquire_async(key),
-            self._loop,
+    async def acquire(self):
+        future = asyncio.run_coroutine_threadsafe(self._acquire(), self._loop)
+        return await asyncio.shield(asyncio.wrap_future(future))
+
+    async def _acquire(self):
+        # we race these two tasks against eachother to avoid waiting for try_aquire_async
+        # during shutdown, because that will take a long time if there are a lot of queued iterations
+        acquire = asyncio.create_task(self._limiter.try_acquire_async("global"))
+        shutdown = asyncio.create_task(asyncio.to_thread(self.shutdown_event.wait))
+        done, _ = await asyncio.wait(
+            {acquire, shutdown},
+            return_when=asyncio.FIRST_COMPLETED,
         )
 
-        # Convert concurrent.futures.Future into something
-        # awaitable from the caller's event loop.
-        return await asyncio.wrap_future(future)
+        if shutdown in done:
+            acquire.cancel()
+            await asyncio.gather(acquire, return_exceptions=True)
+            return False
+
+        shutdown.cancel()
+        await asyncio.gather(shutdown, return_exceptions=True)
+        return acquire.result()
 
     def close(self):
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -98,7 +108,12 @@ def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int
     def decorator(func: Callable[P, AbcCoroutine[Any, Any, R]]):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            await limiter.acquire()
+            user: User = args[0]
+            if not await limiter.acquire():
+                return
+            if not user.running:
+                limiter.shutdown_event.set()
+                return
             return await func(*args, **kwargs)
 
         return cast(Callable[P, AbcCoroutine[Any, Any, R]], async_wrapper)
