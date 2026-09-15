@@ -4,10 +4,11 @@ from collections.abc import Coroutine as AbcCoroutine
 from contextlib import asynccontextmanager
 from functools import wraps
 from threading import Lock
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
+UserT = TypeVar("UserT", bound="User")
 from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 
@@ -105,18 +106,17 @@ class LimiterPortal:
 def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int = 2):
     limiter = LimiterPortal(Rate(rate, duration, burst))
 
-    def decorator(func: Callable[P, AbcCoroutine[Any, Any, R]]):
+    def decorator(
+        func: Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R]],
+    ) -> Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R | None]]:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            user: User = args[0]
-            if not await limiter.acquire():
-                return
-            if not user.running:
-                limiter.shutdown_event.set()
-                return
-            return await func(*args, **kwargs)
+        async def async_wrapper(self: UserT, *args: P.args, **kwargs: P.kwargs) -> R | None:
+            if await limiter.acquire() and self.running:
+                return await func(self, *args, **kwargs)
+            else:
+                limiter.shutdown_event.set()  # this will stop any concurrent aquire calls
 
-        return cast(Callable[P, AbcCoroutine[Any, Any, R]], async_wrapper)
+        return async_wrapper
 
     return decorator
 
