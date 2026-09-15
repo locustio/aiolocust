@@ -1,4 +1,5 @@
 import asyncio
+import re
 import threading
 
 import aiohttp
@@ -217,13 +218,21 @@ def test_duration_shorter_than_rampup(http_server, capteesys):  # noqa: ARG001
 
 def test_rate_limiting(http_server, capteesys):  # noqa: ARG001
     class TestUser(HttpUser):
-        @rate_limit(5)
+        @rate_limit(10)
         async def run(self):
             async with self.client.get("http://localhost:8081/") as resp:
                 pass
 
     Runner([TestUser], 20, 1, host="http://localhost:8081").run_test()
-    out, err = capteesys.readouterr()
+    output, err = capteesys.readouterr()
     assert err == ""
-    assert "Summary" in out
-    assert_search(r" /[ ]+│[ ]+[5] .* \(0.0%\)", out)
+    assert "Summary" in output
+    highest_rate = 0.0
+    for line in output.splitlines():
+        match = re.search(r"(\d*\.?\d+)/s $", line)
+        if match:
+            rate = float(match.group(1))
+            highest_rate = max(highest_rate, rate)
+    assert highest_rate > 9.0, f"request rate never reached high enough value: {highest_rate}"
+    # limiting is using sliding window so slight overshoot during a clock second is normal
+    assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"

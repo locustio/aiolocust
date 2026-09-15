@@ -460,7 +460,7 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env={
-            # "LOCUST_STATS_PRINT_INTERVAL": "1",
+            "LOCUST_STATS_PRINT_INTERVAL": "1",
             **os.environ,
         },
     )
@@ -475,7 +475,7 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         if match:
             rate = float(match.group(1))
             highest_rate = max(highest_rate, rate)
-    assert highest_rate > 8.0, f"request rate never reached high enough value: {highest_rate}"
+    assert highest_rate > 9.0, f"request rate never reached high enough value: {highest_rate}"
     # limiting is using sliding window so slight overshoot during a clock second is normal
     assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
 

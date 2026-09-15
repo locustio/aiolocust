@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
 P = ParamSpec("P")
 R = TypeVar("R")
-from pyrate_limiter import BucketAsyncWrapper, Duration, InMemoryBucket, Limiter, Rate
+from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 
 class User(ABC):
@@ -50,18 +50,55 @@ def __getattr__(name):
 
 lock = Lock()
 
+import asyncio
+import threading
 
-def rate_limit(rate: int, duration: Duration = Duration.SECOND):
+
+class LimiterPortal:
+    def __init__(self, rate: Rate):
+        self._loop = asyncio.new_event_loop()
+        self._ready = threading.Event()
+
+        self._thread = threading.Thread(
+            target=self._run,
+            args=(rate,),
+            daemon=True,
+        )
+        self._thread.start()
+        self._ready.wait()
+
+    def _run(self, rate: Rate):
+        asyncio.set_event_loop(self._loop)
+
+        # Limiter is created and used only on this event loop.
+        self._limiter = Limiter(StateBucket([rate], algorithm=TokenBucket()))
+
+        self._ready.set()
+        self._loop.run_forever()
+
+    async def acquire(self, key: str = "global"):
+        # Schedule the actual Pyrate acquisition on the dedicated loop.
+        future = asyncio.run_coroutine_threadsafe(
+            self._limiter.try_acquire_async(key),
+            self._loop,
+        )
+
+        # Convert concurrent.futures.Future into something
+        # awaitable from the caller's event loop.
+        return await asyncio.wrap_future(future)
+
+    def close(self):
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        self._thread.join()
+
+
+def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int = 2):
+    limiter = LimiterPortal(Rate(rate, duration, burst))
+
     def decorator(func: Callable[P, AbcCoroutine[Any, Any, R]]):
-        limiter = None
-
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            nonlocal limiter
-            with lock:
-                if limiter is None:
-                    limiter = Limiter(BucketAsyncWrapper(InMemoryBucket([Rate(rate, duration)])))
-            await limiter.try_acquire_async(name=func.__qualname__)
+            await limiter.acquire()
             return await func(*args, **kwargs)
 
         return cast(Callable[P, AbcCoroutine[Any, Any, R]], async_wrapper)
