@@ -103,7 +103,7 @@ class LimiterPortal:
         self._thread.join()
 
 
-def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int = 2):
+def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int = 3):
     limiter = LimiterPortal(Rate(rate, duration, burst))
 
     def decorate(
