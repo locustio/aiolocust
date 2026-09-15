@@ -1,4 +1,5 @@
 import asyncio
+import re
 import threading
 
 import aiohttp
@@ -217,13 +218,41 @@ def test_duration_shorter_than_rampup(http_server, capteesys):  # noqa: ARG001
 
 def test_rate_limiting(http_server, capteesys):  # noqa: ARG001
     class TestUser(HttpUser):
-        @rate_limit(5)
+        @rate_limit(10)
         async def run(self):
             async with self.client.get("http://localhost:8081/") as resp:
                 pass
 
-    Runner([TestUser], 20, 1, host="http://localhost:8081").run_test()
+    Runner([TestUser], 20, 3, host="http://localhost:8081", config={"stats_print_interval": 1}).run_test()
+    output, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in output
+    highest_rate = 0.0
+    for line in output.splitlines():
+        match = re.search(r"(\d*\.?\d+)/s $", line)
+        if match:
+            rate = float(match.group(1))
+            highest_rate = max(highest_rate, rate)
+    assert highest_rate > 9.0, f"request rate never reached high enough value: {highest_rate}"
+    # limiting is using sliding window so slight overshoot during a clock second is normal
+    assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
+
+
+def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):  # noqa: ARG001
+    class TestUser(HttpUser):
+        @rate_limit(1)
+        async def run(self):
+            async with self.client.get("/") as resp:
+                pass
+
+    runner = Runner([TestUser], user_count=20, duration=2, rate=20, host="http://localhost:8081")
+    thread = threading.Thread(target=runner.run_test, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive(), "Runner.run_test() took longer than 5 seconds to complete"
+
     out, err = capteesys.readouterr()
     assert err == ""
     assert "Summary" in out
-    assert_search(r" /[ ]+│[ ]+[5] .* \(0.0%\)", out)
+    assert_search(r" / .* \(0.0%\)", out)
+    assert "http://localhost:8081" not in out

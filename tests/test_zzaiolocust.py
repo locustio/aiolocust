@@ -425,10 +425,8 @@ async def run(user):
             tempfile.name,
             "-d",
             "1",
-            env={
-                "LOCUST_SHUTDOWN_TIMEOUT": "0.1",
-                **os.environ,
-            },
+            "--config",
+            '{"shutdown_timeout":0.1}',
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -457,12 +455,10 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         "4",
         "-u",
         "10",
+        "--config",
+        '{"stats_print_interval":1}',
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env={
-            # "LOCUST_STATS_PRINT_INTERVAL": "1",
-            **os.environ,
-        },
     )
     output, err = await communicate_print_and_decode(proc, 7)
     assert "Shutting down" in err
@@ -475,7 +471,7 @@ async def test_rate_limiting(http_server):  # noqa: ARG001
         if match:
             rate = float(match.group(1))
             highest_rate = max(highest_rate, rate)
-    assert highest_rate > 8.0, f"request rate never reached high enough value: {highest_rate}"
+    assert highest_rate > 9.0, f"request rate never reached high enough value: {highest_rate}"
     # limiting is using sliding window so slight overshoot during a clock second is normal
     assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
 

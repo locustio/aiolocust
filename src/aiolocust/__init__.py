@@ -4,11 +4,12 @@ from collections.abc import Coroutine as AbcCoroutine
 from contextlib import asynccontextmanager
 from functools import wraps
 from threading import Lock
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
-from pyrate_limiter import BucketAsyncWrapper, Duration, InMemoryBucket, Limiter, Rate
+UserT = TypeVar("UserT", bound="User")
+from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 
 class User(ABC):
@@ -50,23 +51,73 @@ def __getattr__(name):
 
 lock = Lock()
 
+import asyncio
+import threading
 
-def rate_limit(rate: int, duration: Duration = Duration.SECOND):
-    def decorator(func: Callable[P, AbcCoroutine[Any, Any, R]]):
-        limiter = None
 
+class LimiterPortal:
+    def __init__(self, rate: Rate):
+        self._loop = asyncio.new_event_loop()
+        self._ready = threading.Event()
+        self.shutdown_event = threading.Event()
+
+        self._thread = threading.Thread(
+            target=self._run,
+            args=(rate,),
+            daemon=True,
+        )
+        self._thread.start()
+        self._ready.wait()
+
+    def _run(self, rate: Rate):
+        asyncio.set_event_loop(self._loop)
+        self._limiter = Limiter(StateBucket([rate], algorithm=TokenBucket()))
+        self._ready.set()
+        self._loop.run_forever()
+
+    async def acquire(self):
+        future = asyncio.run_coroutine_threadsafe(self._acquire(), self._loop)
+        return await asyncio.shield(asyncio.wrap_future(future))
+
+    async def _acquire(self):
+        # we race these two tasks against eachother to avoid waiting for try_aquire_async
+        # during shutdown, because that will take a long time if there are a lot of queued iterations
+        acquire = asyncio.create_task(self._limiter.try_acquire_async("global"))
+        shutdown = asyncio.create_task(asyncio.to_thread(self.shutdown_event.wait))
+        done, _ = await asyncio.wait(
+            {acquire, shutdown},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        if shutdown in done:
+            acquire.cancel()
+            await asyncio.gather(acquire, return_exceptions=True)
+            return False
+
+        shutdown.cancel()
+        await asyncio.gather(shutdown, return_exceptions=True)
+        return acquire.result()
+
+    def close(self):
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        self._thread.join()
+
+
+def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int = 2):
+    limiter = LimiterPortal(Rate(rate, duration, burst))
+
+    def decorate(
+        func: Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R]],
+    ) -> Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R | None]]:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            nonlocal limiter
-            with lock:
-                if limiter is None:
-                    limiter = Limiter(BucketAsyncWrapper(InMemoryBucket([Rate(rate, duration)])))
-            await limiter.try_acquire_async(name=func.__qualname__)
-            return await func(*args, **kwargs)
+        async def wrapper(self: UserT, *args: P.args, **kwargs: P.kwargs) -> R | None:
+            if await limiter.acquire() and self.running:
+                return await func(self, *args, **kwargs)
+            limiter.shutdown_event.set()  # this will stop any concurrent aquire calls
 
-        return cast(Callable[P, AbcCoroutine[Any, Any, R]], async_wrapper)
+        return wrapper
 
-    return decorator
+    return decorate
 
 
 __all__ = ["User", "HttpUser", "LocustClientSession", "Runner", "rate_limit"]

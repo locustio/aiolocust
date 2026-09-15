@@ -11,6 +11,7 @@ import warnings
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from aiohttp import ClientOSError
 from opentelemetry import _logs, metrics, trace
@@ -47,8 +48,6 @@ try:
 except ImportError:
     EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)
 
-SHUTDOWN_TIMEOUT = float(os.getenv("LOCUST_SHUTDOWN_TIMEOUT", "30"))
-STATS_PRINT_INTERVAL = float(os.getenv("LOCUST_STATS_PRINT_INTERVAL", "2"))
 
 # We're going to inherit from ClientSession, even though it is considered internal,
 # Because we dont want to take the performance hit and typing issues of wrapping every method
@@ -132,7 +131,7 @@ class Runner:
         rate: float | None = None,
         iterations: int | None = None,
         host: str | None = None,
-        config: dict | None = None,
+        config: dict[str, Any] | None = None,
         event_loops: int | None = None,
         html_report: Path | None = None,
     ):
@@ -147,10 +146,11 @@ class Runner:
         self.users = users
         self.host = host
         self.iteration_counter = SafeCounter(iterations)
-        self.forced_shutdown_timer = threading.Timer(SHUTDOWN_TIMEOUT, shutdown_timeout)
         self.tracer = trace.get_tracer("aiolocust")
         config = config or {}
 
+        self.forced_shutdown_timer = threading.Timer(config.get("shutdown_timeout", 30), shutdown_timeout)
+        self.stats_print_interval = config.get("stats_print_interval", 2)
         if "stages" in config:
             self.stages = [Stage(**item) for item in config["stages"]]
             if user_count > 1 or duration or rate:
@@ -172,6 +172,7 @@ class Runner:
                     Stage(99999999, user_count),
                 ]
             logger.debug(f"Stages: {self.stages}")
+
         self.target_user_count = max((stage.target for stage in self.stages), default=0)
         logger.info(f"Starting test (target user count: {self.target_user_count})")
 
@@ -194,7 +195,7 @@ class Runner:
             if not first:
                 self.console.print(self.sf.get_table())
             first = False
-            await asyncio.sleep(STATS_PRINT_INTERVAL)
+            await asyncio.sleep(self.stats_print_interval)
 
     async def shutdown(self, reason=None):
         if not self.running:
