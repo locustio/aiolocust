@@ -433,7 +433,7 @@ async def run(user):
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=2 + WINDOWS_DELAY * 2)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=9)
         except TimeoutError:
             proc.kill()
             stdout, stderr = await proc.communicate()
