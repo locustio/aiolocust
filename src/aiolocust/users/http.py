@@ -100,15 +100,15 @@ class LocustRequestContextManager(_RequestContextManager):
                 url = request_info.url
             else:
                 url = self.str_or_url
-            events.request.fire(Request(str(self.name or url), elapsed, elapsed, e))
+            await events.request.fire(Request(str(self.name or url), elapsed, elapsed, e))
             raise
         except ClientResponseError as e:
             elapsed = self.ttlb = time.perf_counter() - self.start_time
-            events.request.fire(Request(str(self.name or self.str_or_url), elapsed, elapsed, e))
+            await events.request.fire(Request(str(self.name or self.str_or_url), elapsed, elapsed, e))
             raise
         except TimeoutError as e:
             elapsed = self.ttlb = time.perf_counter() - self.start_time
-            events.request.fire(Request(str(self.name or self.str_or_url), elapsed, elapsed, e))
+            await events.request.fire(Request(str(self.name or self.str_or_url), elapsed, elapsed, e))
             raise
         else:
             self.url = super()._resp.url
@@ -138,7 +138,7 @@ class LocustRequestContextManager(_RequestContextManager):
                 self.span.record_exception(Exception(self._resp.error))
         context.detach(self._token)
         self.span.end()
-        events.request.fire(
+        await events.request.fire(
             Request(
                 self.name or str(self.url).removeprefix(str(self._base_url)),
                 self.ttfb,

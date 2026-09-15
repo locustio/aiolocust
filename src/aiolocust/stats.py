@@ -29,7 +29,7 @@ def record_error(message: str) -> None:
         error_counter[message] += 1
 
 
-def record_request(req: Request) -> None:
+async def record_request(req: Request) -> None:
     attributes = {
         "name": req.name,
         # the rest of these remain to be implemented

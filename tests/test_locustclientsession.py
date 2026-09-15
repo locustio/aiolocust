@@ -20,7 +20,7 @@ def reset():
     requests.clear()
 
     @events.request.add_listener
-    def save_request(request: Request):
+    async def save_request(request: Request):
         requests.append(request)
 
     yield
@@ -194,13 +194,13 @@ async def test_websocket(aiohttp_client: pytest_aiohttp.AiohttpClient):
     async def _(client: LocustClientSession):
         async with client.ws_connect(test_client.make_url("/ws")) as ws:
             await ws.send_str("foo")
-            events.request.fire(Request("send foo", 0, 0, None))
+            await events.request.fire(Request("send foo", 0, 0, None))
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
-                    events.request.fire(Request(f"recv {msg.data}", 0, 0, None))
+                    await events.request.fire(Request(f"recv {msg.data}", 0, 0, None))
                     await ws.send_str("close")
                 elif msg.type == WSMsgType.ERROR:
-                    events.request.fire(Request(f"recv {msg.data}", 0, 0, Exception("error-response")))
+                    await events.request.fire(Request(f"recv {msg.data}", 0, 0, Exception("error-response")))
                     break
 
     async with LocustClientSession() as client:

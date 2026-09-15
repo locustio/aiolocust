@@ -24,10 +24,10 @@ async def test_get_table():
     f.seek(0)
     assert "Total" in output
 
-    record_request(Request("foo", 1, 1, None))
-    record_request(Request("foo", 1, 2, True))
-    record_request(Request("bar", 1, 1, None))
-    record_request(Request("bar", 1, 2, True))
+    await record_request(Request("foo", 1, 1, None))
+    await record_request(Request("foo", 1, 2, True))
+    await record_request(Request("bar", 1, 1, None))
+    await record_request(Request("bar", 1, 2, True))
     await asyncio.sleep(0.5)
     console.print(sf.get_table())
     output = f.getvalue()
@@ -54,10 +54,10 @@ async def test_cumulative_printout(mocker):
     clock = mocker.patch("aiolocust.stats.time.time", return_value=0.0)
     sf = StatsFormatter()
 
-    record_request(Request("foo", 1, 1, None))
-    record_request(Request("foo", 2, 2, None))
-    record_request(Request("bar", 3, 3, None))
-    record_request(Request("baz", 4, 4, True))
+    await record_request(Request("foo", 1, 1, None))
+    await record_request(Request("foo", 2, 2, None))
+    await record_request(Request("bar", 3, 3, None))
+    await record_request(Request("baz", 4, 4, True))
     clock.return_value = 2
     console.print(sf.get_table())
     output = f.getvalue()
@@ -69,9 +69,9 @@ async def test_cumulative_printout(mocker):
 
     f.seek(0)
     f.truncate(0)
-    record_request(Request("foo", 1, 1, None))
-    record_request(Request("bar", 2, 2, None))
-    record_request(Request("baz", 3, 3, None))
+    await record_request(Request("foo", 1, 1, None))
+    await record_request(Request("bar", 2, 2, None))
+    await record_request(Request("baz", 3, 3, None))
     clock.return_value = 4
     console.print(sf.get_table())
     output = f.getvalue()
@@ -83,9 +83,9 @@ async def test_cumulative_printout(mocker):
 
     f.seek(0)
     f.truncate(0)
-    record_request(Request("foo", 1, 1, None))
-    record_request(Request("foo", 2, 2, None))
-    record_request(Request("bar", 3, 3, None))
+    await record_request(Request("foo", 1, 1, None))
+    await record_request(Request("foo", 2, 2, None))
+    await record_request(Request("bar", 3, 3, None))
     clock.return_value = 5
     console.print(sf.get_table(True))
     output = f.getvalue()
@@ -98,11 +98,11 @@ async def test_error_pct_summary():
     f = io.StringIO()
     console = Console(file=f)
     sf = StatsFormatter()
-    record_request(Request("foo", 1, 1, None))
-    record_request(Request("foo", 2, 2, None))
-    record_request(Request("bar", 3, 3, None))
-    record_request(Request("bar", 4, 4, Exception("an exception")))
-    record_request(Request("baz", 5, 5, True))
+    await record_request(Request("foo", 1, 1, None))
+    await record_request(Request("foo", 2, 2, None))
+    await record_request(Request("bar", 3, 3, None))
+    await record_request(Request("bar", 4, 4, Exception("an exception")))
+    await record_request(Request("baz", 5, 5, True))
     await asyncio.sleep(0.5)
     console.print(sf.get_table(True))
     console.print(sf.get_error_table())
@@ -126,7 +126,7 @@ async def test_error_cardinality():
     console = Console(file=f)
     sf = StatsFormatter()
     for i in range(300):
-        record_request(Request("foo", 1, 1, Exception(f"error with unique id {i}")))
+        await record_request(Request("foo", 1, 1, Exception(f"error with unique id {i}")))
     console.print(sf.get_error_table())
     output = f.getvalue()
     assert "Error" in output
