@@ -223,7 +223,7 @@ def test_rate_limiting(http_server, capteesys):  # noqa: ARG001
             async with self.client.get("http://localhost:8081/") as resp:
                 pass
 
-    Runner([TestUser], 20, 1, host="http://localhost:8081", config={"stats_print_interval": 1}).run_test()
+    Runner([TestUser], 20, 3, host="http://localhost:8081", config={"stats_print_interval": 1}).run_test()
     output, err = capteesys.readouterr()
     assert err == ""
     assert "Summary" in output
