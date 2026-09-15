@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, ParamSpec
 
 from aiolocust.datatypes import Request
@@ -12,20 +12,20 @@ P = ParamSpec("P")
 
 class EventHook[**P]:
     def __init__(self):
-        self._handlers: list[Callable[P, None]] = []
+        self._handlers: list[Callable[P, Awaitable[None]]] = []
         self._logger = logging.getLogger(__name__)  # get logger here, once it has been initialized
 
-    def add_listener(self, func: Callable[P, None]) -> Callable[P, None]:
+    def add_listener(self, func: Callable[P, Awaitable[None]]) -> Callable[P, Awaitable[None]]:
         if func not in self._handlers:
             self._handlers.append(func)
         else:
             pass  # ignore duplicate listener registration
         return func
 
-    def fire(self, *args: P.args, **kwargs: P.kwargs) -> None:
+    async def fire(self, *args: P.args, **kwargs: P.kwargs) -> None:
         for handler in self._handlers:
             try:
-                handler(*args, **kwargs)
+                await handler(*args, **kwargs)
             except Exception as e:
                 self._logger.exception(e)
 

@@ -58,24 +58,24 @@ from aiolocust import HttpUser, events
 started = False
 
 @events.startup.add_listener
-def on_start():
+async def on_start():
     global started
     started = True
     print("foo")
 
 @events.shutdown_requested.add_listener
-def on_shutdown_request_crashing(runner):
+async def on_shutdown_request_crashing(runner):
     raise Exception("this exception will be logged, but mustn't prevent shutdown")
 
 @events.shutdown_requested.add_listener
-def on_shutdown_request(runner):
+async def on_shutdown_request(runner):
     print("bar")
     assert runner.running
     assert started
     print(runner.iteration_counter.value)
 
 @events.shutdown_completed.add_listener
-def on_shutdown_complete(runner):
+async def on_shutdown_complete(runner):
     assert not runner.running
     print("baz")
 

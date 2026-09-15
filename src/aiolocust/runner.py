@@ -196,13 +196,13 @@ class Runner:
             first = False
             await asyncio.sleep(STATS_PRINT_INTERVAL)
 
-    def shutdown(self, reason=None):
+    async def shutdown(self, reason=None):
         if not self.running:
             logger.debug("Already shutting down, ignoring shutdown() call")
             return
 
         logger.info(f"Shutting down ({reason or 'no reason given'})")
-        events.shutdown_requested.fire(self)
+        await events.shutdown_requested.fire(self)
         self.forced_shutdown_timer.start()
 
         self.running = False
@@ -240,7 +240,7 @@ class Runner:
                     user_instance.running = False
                     self.running_users.remove(user_instance)
                     if not self.running_users:
-                        self.shutdown(f"reached iteration limit ({self.iteration_counter.value})")
+                        await self.shutdown(f"reached iteration limit ({self.iteration_counter.value})")
                     break
                 try:
                     await user_instance.run()
@@ -259,7 +259,13 @@ class Runner:
             # probably repeat signal, just exit immediately
             os._exit(128 + signal)  # this is linux standard, apparently
         print()
-        self.shutdown("got SIGINT/CTRL-C")
+
+        loop = asyncio.get_running_loop()
+
+        def schedule_shutdown():
+            asyncio.create_task(self.shutdown("got SIGINT/CTRL-C"))
+
+        loop.call_soon_threadsafe(schedule_shutdown)
 
     def run_test(self):
         asyncio.run(self.run_test_async(), loop_factory=new_event_loop)
@@ -276,7 +282,7 @@ class Runner:
 
     async def run_test_async(self):
         self.running = True
-        events.startup.fire()
+        await events.startup.fire()
         self.workers = [LoopWorker() for _ in range(self.event_loops)]
         for w in self.workers:
             w.start()
@@ -295,7 +301,7 @@ class Runner:
             elapsed = time.time() - self.start_time
             new_user_count = desired_user_count(self.stages, elapsed)
             if new_user_count is None:
-                self.shutdown(f"target duration elapsed after {elapsed:.2f}s")
+                await self.shutdown(f"target duration elapsed after {elapsed:.2f}s")
                 break
             change = new_user_count - self.current_user_count
             if change > 0:
@@ -309,7 +315,7 @@ class Runner:
             current_users_gauge.set(self.current_user_count)
 
         if self.running:  # if we exited the loop without a signal, we should still do a proper shutdown
-            self.shutdown("run_test loop exited - possibly due to an exception?")
+            await self.shutdown("run_test loop exited - possibly due to an exception?")
         end_time = time.time()
         stats_printer_task.cancel()
 
@@ -335,4 +341,4 @@ class Runner:
         for w in self.workers:
             w.stop()
 
-        events.shutdown_completed.fire(self)
+        await events.shutdown_completed.fire(self)
