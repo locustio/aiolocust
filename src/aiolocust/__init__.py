@@ -59,7 +59,6 @@ class LimiterPortal:
     def __init__(self, rate: Rate):
         self._loop = asyncio.new_event_loop()
         self._ready = threading.Event()
-        self.shutdown_event = threading.Event()
 
         self._thread = threading.Thread(
             target=self._run,
@@ -72,6 +71,7 @@ class LimiterPortal:
     def _run(self, rate: Rate):
         asyncio.set_event_loop(self._loop)
         self._limiter = Limiter(StateBucket([rate], algorithm=TokenBucket()))
+        self._shutdown = asyncio.Event()
         self._ready.set()
         self._loop.run_forever()
 
@@ -83,7 +83,7 @@ class LimiterPortal:
         # we race these two tasks against eachother to avoid waiting for try_aquire_async
         # during shutdown, because that will take a long time if there are a lot of queued iterations
         acquire = asyncio.create_task(self._limiter.try_acquire_async("global"))
-        shutdown = asyncio.create_task(asyncio.to_thread(self.shutdown_event.wait))
+        shutdown = asyncio.create_task(self._shutdown.wait())
         done, _ = await asyncio.wait(
             {acquire, shutdown},
             return_when=asyncio.FIRST_COMPLETED,
@@ -97,6 +97,9 @@ class LimiterPortal:
         shutdown.cancel()
         await asyncio.gather(shutdown, return_exceptions=True)
         return acquire.result()
+
+    def request_shutdown(self):
+        self._loop.call_soon_threadsafe(self._shutdown.set)
 
     def close(self):
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -113,7 +116,7 @@ def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int
         async def wrapper(self: UserT, *args: P.args, **kwargs: P.kwargs) -> R | None:
             if await limiter.acquire() and self.running:
                 return await func(self, *args, **kwargs)
-            limiter.shutdown_event.set()  # this will stop any concurrent aquire calls
+            limiter.request_shutdown()  # this will stop any concurrent aquire calls
 
         return wrapper
 
