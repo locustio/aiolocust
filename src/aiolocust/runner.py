@@ -11,6 +11,7 @@ import warnings
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from aiohttp import ClientOSError
 from opentelemetry import _logs, metrics, trace
@@ -130,7 +131,7 @@ class Runner:
         rate: float | None = None,
         iterations: int | None = None,
         host: str | None = None,
-        config: dict[str, float | str] | None = None,
+        config: dict[str, Any] | None = None,
         event_loops: int | None = None,
         html_report: Path | None = None,
     ):
