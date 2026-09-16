@@ -13,46 +13,60 @@ def _timeout_handler(_signum, _frame):
         raise TimeoutError("test timed out after 10 seconds")
 
 
-def test_main(http_server):  # noqa: ARG001
+def invoke(tmp_path, locustfile: str, *args, **kwargs):
     runner = CliRunner()
-    with runner.isolated_filesystem():
-        with open("my_locustfile.py", "w") as f:
-            f.write("""
+    with open(tmp_path / "locustfile.py", "w") as f:
+        f.write(locustfile)
+    output = runner.invoke(app, [str(tmp_path / "locustfile.py"), *args], **kwargs)
+    print(output)
+    return output
+
+
+def test_main(http_server, tmp_path):  # noqa: ARG001
+    result = invoke(
+        tmp_path,
+        """
 from aiolocust import HttpUser
 
 class MyUser(HttpUser):
     async def run(self):
         async with self.client.get("http://localhost:8081/") as resp:
             pass
-""")
-        result = runner.invoke(app, ["my_locustfile.py", "--iterations", "3", "-u", "2"])
-        assert "http://localhost:" in result.output
-        assert "0 (0.0%)" in result.output
-        assert result.exit_code == 0
+    """,
+        "--iterations",
+        "3",
+        "-u",
+        "2",
+    )
+    assert "http://localhost:" in result.output
+    assert "0 (0.0%)" in result.output
+    assert result.exit_code == 0
 
 
-def test_run_method(http_server):  # noqa: ARG001
-    runner = CliRunner()
-    with runner.isolated_filesystem():
-        with open("my_locustfile.py", "w") as f:
-            f.write("""
+def test_run_method(http_server, tmp_path):  # noqa: ARG001
+    result = invoke(
+        tmp_path,
+        """
 async def run(user):
     async with user.client.get("http://localhost:8081/") as resp:
         pass
-""")
-        result = runner.invoke(app, ["my_locustfile.py", "--iterations", "3", "-u", "2"])
-        print(result.output)
-        assert "http://localhost:" in result.output
-        assert " 3 " in result.output
-        assert "0 (0.0%)" in result.output
-        assert result.exit_code == 0
+""",
+        "--iterations",
+        "3",
+        "-u",
+        "2",
+    )
+    assert "http://localhost:" in result.output
+    assert " 3 " in result.output
+    assert "0 (0.0%)" in result.output
+    assert result.exit_code == 0
 
 
-def test_on_start_and_shutdown():  # noqa: ARG001
-    runner = CliRunner()
-    with runner.isolated_filesystem():
-        with open("my_locustfile.py", "w") as f:
-            f.write("""
+def test_on_start_and_shutdown(tmp_path):  # noqa: ARG001
+    try:
+        result = invoke(
+            tmp_path,
+            """
 from aiolocust import HttpUser, events
 
 started = False
@@ -85,91 +99,84 @@ class MyUser(HttpUser):
             print("xxx")
         else:
             print("on_start didn't seem to run?")
-""")
-        try:
-            result = runner.invoke(app, ["my_locustfile.py", "--iterations", "42"])
-        finally:
-            events._clear_handlers()
-        print(result.output)
-        assert "xxx" in result.output
-        assert not "on_start didn't" in result.output
-        assert "foo" in result.output
-        assert "bar" in result.output
-        assert "42" in result.output
-        assert "baz" in result.output
-        # this will end up being logged to pytest
-        # assert "this exception will be logged, but mustn't prevent shutdown" in result.output
-        assert result.exit_code == 0
+""",
+            "--iterations",
+            "42",
+        )
+    finally:
+        events._clear_handlers()
+    assert "xxx" in result.output
+    assert not "on_start didn't" in result.output
+    assert "foo" in result.output
+    assert "bar" in result.output
+    assert "42" in result.output
+    assert "baz" in result.output
+    # this will end up being logged to pytest
+    # assert "this exception will be logged, but mustn't prevent shutdown" in result.output
+    assert result.exit_code == 0
 
 
-def test_html_report(http_server):  # noqa: ARG001
-    runner = CliRunner()
-    with runner.isolated_filesystem():
-        with open("my_locustfile.py", "w") as f:
-            f.write("""
+def test_html_report(http_server, tmp_path):  # noqa: ARG001
+    result = invoke(
+        tmp_path,
+        """
 async def run(user):
     async with user.client.get("http://localhost:8081/") as resp:
         pass
-""")
-        result = runner.invoke(
-            app,
-            ["my_locustfile.py", "--iterations", "3", "-u", "2", "--html-report", "reports/report.html"],
-        )
-        print(result.output)
-        assert "http://localhost:" in result.output
-        assert "0 (0.0%)" in result.output
-        assert result.exit_code == 0
-        assert result.output.count("http://localhost:") == 1  # no accidental duplicate print
-        with open("reports/report.html") as report:
-            html = report.read()
-        assert "<!DOCTYPE html>" in html
-        assert "http://localhost:" in html
-        assert "target user count: 2" in html
-        assert "Total" in html
+""",
+        "--iterations",
+        "3",
+        "-u",
+        "2",
+        "--html-report",
+        "reports/report.html",
+    )
+    assert "http://localhost:" in result.output
+    assert "0 (0.0%)" in result.output
+    assert result.exit_code == 0
+    assert result.output.count("http://localhost:") == 1  # no accidental duplicate print
+    with open("reports/report.html") as report:
+        html = report.read()
+    assert "<!DOCTYPE html>" in html
+    assert "http://localhost:" in html
+    assert "target user count: 2" in html
+    assert "Total" in html
 
 
-def test_relative_import_in_module():
+def test_relative_import_in_module(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem():
-        os.makedirs("mytests")
-        with open("mytests/__init__.py", "w") as f:
-            f.write("")
-        with open("mytests/helper.py", "w") as f:
-            f.write(
-                """
+    os.makedirs(tmp_path / "mytests")
+    with open(tmp_path / "mytests/__init__.py", "w") as f:
+        f.write("")
+    with open(tmp_path / "mytests/helper.py", "w") as f:
+        f.write(
+            """
 async def run(user):
-    pass
+pass
 """
-            )
-        with open("mytests/my_locustfile.py", "w") as f:
-            f.write(
-                """
+        )
+    with open(tmp_path / "mytests/my_locustfile.py", "w") as f:
+        f.write(
+            """
 from .helper import run
 """
-            )
+        )
 
-        result = runner.invoke(app, ["mytests/my_locustfile.py", "--iterations", "1"])
+        result = runner.invoke(app, [str(tmp_path / "mytests/my_locustfile.py"), "--iterations", "1"])
         assert result.exit_code == 0
 
 
-def test_config(http_server):  # noqa: ARG001
-    runner = CliRunner()
-    with runner.isolated_filesystem():
-        with open("my_locustfile.py", "w") as f:
-            f.write("""
+def test_config(http_server, tmp_path):  # noqa: ARG001
+    result = invoke(
+        tmp_path,
+        """
 async def run(user):
     async with user.client.get("http://localhost:8081/") as resp:
         pass
-""")
-        result = runner.invoke(
-            app,
-            [
-                "my_locustfile.py",
-                "--config",
-                '{ "stages": [{ "duration": 2, "target": 2 }] }',
-            ],
-        )
-        print(result.output)
-        assert "http://localhost:" in result.output
-        assert "0 (0.0%)" in result.output
-        assert result.exit_code == 0
+""",
+        "--config",
+        '{ "stages": [{ "duration": 2, "target": 2 }] }',
+    )
+    assert "http://localhost:" in result.output
+    assert "0 (0.0%)" in result.output
+    assert result.exit_code == 0
