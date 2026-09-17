@@ -129,13 +129,13 @@ async def run(user):
         "-u",
         "2",
         "--html-report",
-        "reports/report.html",
+        tmp_path / "reports/report.html",
     )
     assert "http://localhost:" in result.output
     assert "0 (0.0%)" in result.output
     assert result.exit_code == 0
     assert result.output.count("http://localhost:") == 1  # no accidental duplicate print
-    with open("reports/report.html") as report:
+    with open(tmp_path / "reports/report.html") as report:
         html = report.read()
     assert "<!DOCTYPE html>" in html
     assert "http://localhost:" in html
