@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import logging
 import math
 import os
@@ -9,6 +10,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -134,6 +136,7 @@ class Runner:
         config: dict[str, Any] | None = None,
         event_loops: int | None = None,
         html_report: Path | None = None,
+        json_report: Path | None = None,
     ):
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -186,6 +189,7 @@ class Runner:
         else:
             self.event_loops = event_loops
         self.html_report = html_report
+        self.json_report = json_report
         self.running_users: set[User] = set()
         self.futures: list[asyncio.Future] = []
 
@@ -326,6 +330,17 @@ class Runner:
 
         if stats.error_counter:
             self.console.print(error_table)
+
+        if self.json_report:
+            logger.debug(f"Saving JSON report to {self.json_report}")
+            entries = []
+
+            for name, value in self.sf.aggregate.items():
+                entries.append({"name": name, **asdict(value)})
+
+            self.json_report.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.json_report, "w", encoding="utf-8") as write_file:
+                json.dump(entries, write_file)
 
         if self.html_report:
             logger.debug(f"Saving HTML report to {self.html_report}")

@@ -1,3 +1,4 @@
+import json
 import os
 
 from typer.testing import CliRunner
@@ -141,6 +142,40 @@ async def run(user):
     assert "http://localhost:" in html
     assert "target user count: 2" in html
     assert "Total" in html
+
+
+def test_json_report(http_server, tmp_path):  # noqa: ARG001
+    result = invoke(
+        tmp_path,
+        """
+async def run(user):
+    async with user.client.get("http://localhost:8081/", name="1") as resp:
+        pass
+    async with user.client.get("http://localhost:8081/", name="1") as resp:
+        pass
+    async with user.client.get("http://localhost:8081/doesnotexist", name="2") as resp:
+        assert "foo" in await resp.text()
+""",
+        "--iterations",
+        "3",
+        "-u",
+        "2",
+        "--json-report",
+        tmp_path / "reports/report.json",
+    )
+    assert "2" in result.output
+    assert "0 (0.0%)" in result.output
+    print(result.output)
+    assert result.exit_code == 0
+
+    with open(tmp_path / "reports/report.json") as report:
+        js = json.load(report)
+
+    print(js)
+    assert js[0]["name"] == "1"
+    assert js[0]["count"] == 6
+    assert js[1]["name"] == "2"
+    assert js[1]["errorcount"] == 3
 
 
 def test_relative_import_in_module(tmp_path):
