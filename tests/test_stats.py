@@ -1,5 +1,6 @@
 import asyncio
 import io
+import time
 
 import pytest
 from rich.console import Console
@@ -19,7 +20,7 @@ async def test_get_table():
     f = io.StringIO()
     console = Console(file=f)
     sf = StatsFormatter()
-    console.print(sf.get_table())
+    console.print(sf.get_table(time.time()))
     output = f.getvalue()
     f.seek(0)
     assert "Total" in output
@@ -29,7 +30,7 @@ async def test_get_table():
     await record_request(Request("bar", 1, 1, None))
     await record_request(Request("bar", 1, 2, True))
     await asyncio.sleep(0.5)
-    console.print(sf.get_table())
+    console.print(sf.get_table(time.time()))
     output = f.getvalue()
     f.seek(0)
     assert "foo" in output
@@ -40,7 +41,7 @@ async def test_get_table():
     assert_search(r"Total .* [567].\d{2}/s", output)
 
     await asyncio.sleep(0.1)
-    console.print(sf.get_table(True))
+    console.print(sf.get_table(time.time(), True))
     output = f.getvalue()
     f.seek(0)
     assert_search(r"foo .* [23].\d{2}/s", output)
@@ -59,7 +60,7 @@ async def test_cumulative_printout(mocker):
     await record_request(Request("bar", 3, 3, None))
     await record_request(Request("baz", 4, 4, True))
     clock.return_value = 2
-    console.print(sf.get_table())
+    console.print(sf.get_table(time.time()))
     output = f.getvalue()
     print(output)
     assert_search(r"foo .* 2 .* 1.00/s .* 1.00/s", output)
@@ -73,7 +74,7 @@ async def test_cumulative_printout(mocker):
     await record_request(Request("bar", 2, 2, None))
     await record_request(Request("baz", 3, 3, None))
     clock.return_value = 4
-    console.print(sf.get_table())
+    console.print(sf.get_table(time.time()))
     output = f.getvalue()
     print(output)
     assert_search(r"foo .* 3 .* 0.75/s .* 0.50/s", output)
@@ -87,7 +88,7 @@ async def test_cumulative_printout(mocker):
     await record_request(Request("foo", 2, 2, None))
     await record_request(Request("bar", 3, 3, None))
     clock.return_value = 5
-    console.print(sf.get_table(True))
+    console.print(sf.get_table(time.time(), True))
     output = f.getvalue()
     print(output)
     assert "Current rate" not in output
@@ -104,7 +105,7 @@ async def test_error_pct_summary():
     await record_request(Request("bar", 4, 4, Exception("an exception")))
     await record_request(Request("baz", 5, 5, True))
     await asyncio.sleep(0.5)
-    console.print(sf.get_table(True))
+    console.print(sf.get_table(time.time(), True))
     console.print(sf.get_error_table())
     output = f.getvalue()
     print(output)

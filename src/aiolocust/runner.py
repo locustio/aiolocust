@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import logging
 import math
 import os
@@ -9,6 +10,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,7 +20,7 @@ from opentelemetry import _logs, metrics, trace
 from rich.console import Console
 
 from aiolocust import User, events, stats
-from aiolocust.datatypes import SafeCounter, Stage
+from aiolocust.datatypes import RequestEntry, SafeCounter, Stage
 from aiolocust.otel import configure_telemetry
 
 # uvloop is faster than the default pure-python asyncio event loop
@@ -134,6 +136,7 @@ class Runner:
         config: dict[str, Any] | None = None,
         event_loops: int | None = None,
         html_report: Path | None = None,
+        json_report: Path | None = None,
     ):
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -186,6 +189,7 @@ class Runner:
         else:
             self.event_loops = event_loops
         self.html_report = html_report
+        self.json_report = json_report
         self.running_users: set[User] = set()
         self.futures: list[asyncio.Future] = []
 
@@ -193,7 +197,7 @@ class Runner:
         first = True
         while self.running:
             if not first:
-                self.console.print(self.sf.get_table())
+                self.console.print(self.sf.get_table(time.time()))
             first = False
             await asyncio.sleep(self.stats_print_interval)
 
@@ -320,18 +324,55 @@ class Runner:
         end_time = time.time()
         stats_printer_task.cancel()
 
-        summary_table = self.sf.get_table(True)
+        summary_table = self.sf.get_table(end_time, True)
         self.console.print(summary_table)
         error_table = self.sf.get_error_table() if stats.error_counter else None
 
         if stats.error_counter:
             self.console.print(error_table)
 
+        if self.json_report:
+            logger.debug(f"Saving JSON report to {self.json_report}")
+
+            total = RequestEntry()
+            entries: dict[str, Any] = {
+                "start_time": self.start_time,
+                "end_time": end_time,
+                "elapsed": end_time - self.start_time,
+                "total": None,  # this is just here for ordering purposes
+                "requests": [],
+            }
+            # This stuff duplicates _get_rows a little bit.
+            # We should refactor at some point
+            for name, re in self.sf.aggregate.items():
+                entries["requests"].append(
+                    {
+                        "name": name,
+                        **asdict(re),
+                        "error_percentage": re.error_percentage,
+                        "rate": re.rate(self.start_time, end_time),
+                    }
+                )
+                total.count += re.count
+                total.errorcount += re.errorcount
+                total.sum_ttlb += re.sum_ttlb
+                total.max_ttlb = max(total.max_ttlb, re.max_ttlb)
+
+            entries["total"] = {
+                **asdict(total),
+                "error_percentage": total.error_percentage,
+                "rate": total.rate(self.start_time, end_time),
+            }
+
+            self.json_report.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.json_report, "w", encoding="utf-8") as write_file:
+                json.dump(entries, write_file)
+
         if self.html_report:
             logger.debug(f"Saving HTML report to {self.html_report}")
             report_console = Console(record=True, file=io.StringIO())
 
-            summary_table.title = f"{datetime.fromtimestamp(self.start_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-4]} - {datetime.fromtimestamp(end_time).strftime('%H:%M:%S.%f')[:-4]} ({end_time - self.start_time:.2f}s, target user count: {self.target_user_count})"
+            summary_table.title = f"{datetime.fromtimestamp(self.start_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-4]} - {datetime.fromtimestamp(end_time).strftime('%H:%M:%S.%f')[:-4]} ({end_time - self.start_time:.4f}s, target user count: {self.target_user_count})"
             report_console.print(summary_table)
             if error_table:
                 report_console.print(error_table)

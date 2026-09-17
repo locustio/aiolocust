@@ -83,9 +83,8 @@ class StatsFormatter:
 
         return entries
 
-    def _get_rows(self, final_summary) -> list[list[str]]:
+    def _get_rows(self, now, final_summary) -> list[list[str]]:
         table: list[list[str]] = []
-        now = time.time()
 
         current_entries = self._get_entries()
         for url, re in current_entries.items():
@@ -111,7 +110,7 @@ class StatsFormatter:
 
         return table
 
-    def get_table(self, final_summary=False):
+    def get_table(self, endtime: float, final_summary=False):
         table = Table(show_edge=False)
         table.add_column("Name", max_width=30)
         table.add_column("Count", justify="right")
@@ -123,7 +122,7 @@ class StatsFormatter:
         if not final_summary:
             table.add_column("Current rate", justify="right")
 
-        for row in self._get_rows(final_summary):
+        for row in self._get_rows(endtime, final_summary):
             table.add_row(*row)
 
         if final_summary:

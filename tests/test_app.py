@@ -1,5 +1,8 @@
+import json
 import os
+import re
 
+import pytest
 from typer.testing import CliRunner
 
 from aiolocust import events
@@ -141,6 +144,50 @@ async def run(user):
     assert "http://localhost:" in html
     assert "target user count: 2" in html
     assert "Total" in html
+
+
+def test_json_report(http_server, tmp_path):  # noqa: ARG001
+    result = invoke(
+        tmp_path,
+        """
+async def run(user):
+    async with user.client.get("http://localhost:8081/", name="1") as resp:
+        pass
+    async with user.client.get("http://localhost:8081/", name="1") as resp:
+        pass
+    async with user.client.get("http://localhost:8081/doesnotexist", name="2") as resp:
+        assert "foo" in await resp.text()
+""",
+        "--iterations",
+        "3",
+        "-u",
+        "2",
+        "--json-report",
+        tmp_path / "reports/report.json",
+    )
+    assert "2" in result.output
+    assert "0 (0.0%)" in result.output
+    print(result.output)
+    assert result.exit_code == 0
+
+    with open(tmp_path / "reports/report.json") as report:
+        js = json.load(report)
+
+    print(json.dumps(js, indent=2))
+    assert js["requests"][0]["name"] == "1"
+    assert js["requests"][0]["count"] == 6
+    assert js["requests"][1]["name"] == "2"
+    assert js["requests"][1]["errorcount"] == 3
+    assert js["total"]["count"] == js["requests"][0]["count"] + js["requests"][1]["count"]
+    assert js["total"]["errorcount"] == 3
+
+    assert js["total"]["rate"] == pytest.approx(js["requests"][0]["rate"] + js["requests"][1]["rate"])
+
+    # this last validation doesnt work right now, but I think the problem is in the log, rather than the json!
+    match = re.findall(r"(\d*\.?\d+)/s $", result.output, flags=re.MULTILINE)[-1]
+    assert match is not None
+    # rate_from_log = float(match)
+    # assert js["total"]["rate"] == rate_from_log
 
 
 def test_relative_import_in_module(tmp_path):

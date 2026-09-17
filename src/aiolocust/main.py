@@ -101,6 +101,10 @@ def main(
         Path | None,
         typer.Option("--html-report", help="Write the final summary as a static HTML report"),
     ] = None,
+    json_report: Annotated[
+        Path | None,
+        typer.Option("--json-report", help="Write the final summary as a JSON file"),
+    ] = None,
     profile: Annotated[
         str | None,
         typer.Option(
@@ -229,6 +233,7 @@ def main(
             config=config,
             event_loops=event_loops,
             html_report=html_report,
+            json_report=json_report,
         )
         r.run_test()
     else:
