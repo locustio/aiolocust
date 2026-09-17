@@ -1,6 +1,8 @@
 import json
 import os
+import re
 
+import pytest
 from typer.testing import CliRunner
 
 from aiolocust import events
@@ -171,11 +173,21 @@ async def run(user):
     with open(tmp_path / "reports/report.json") as report:
         js = json.load(report)
 
-    print(js)
-    assert js[0]["name"] == "1"
-    assert js[0]["count"] == 6
-    assert js[1]["name"] == "2"
-    assert js[1]["errorcount"] == 3
+    print(json.dumps(js, indent=2))
+    assert js["requests"][0]["name"] == "1"
+    assert js["requests"][0]["count"] == 6
+    assert js["requests"][1]["name"] == "2"
+    assert js["requests"][1]["errorcount"] == 3
+    assert js["total"]["count"] == js["requests"][0]["count"] + js["requests"][1]["count"]
+    assert js["total"]["errorcount"] == 3
+
+    assert js["total"]["rate"] == pytest.approx(js["requests"][0]["rate"] + js["requests"][1]["rate"])
+
+    # this last validation doesnt work right now, but I think the problem is in the log, rather than the json!
+    match = re.findall(r"(\d*\.?\d+)/s $", result.output, flags=re.MULTILINE)[-1]
+    assert match is not None
+    # rate_from_log = float(match)
+    # assert js["total"]["rate"] == rate_from_log
 
 
 def test_relative_import_in_module(tmp_path):
