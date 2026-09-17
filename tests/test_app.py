@@ -72,7 +72,7 @@ from aiolocust import HttpUser, events
 started = False
 
 @events.startup.add_listener
-async def on_start():
+async def on_start(runner):
     global started
     started = True
     print("foo")

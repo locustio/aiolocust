@@ -30,7 +30,7 @@ class EventHook[**P]:
                 self._logger.exception(e)
 
 
-startup = EventHook[[]]()
+startup = EventHook[["Runner"]]()
 request = EventHook[[Request]]()
 shutdown_requested = EventHook[["Runner"]]()
 shutdown_completed = EventHook[["Runner"]]()
@@ -38,7 +38,7 @@ shutdown_completed = EventHook[["Runner"]]()
 
 def _clear_handlers():
     global startup, request, shutdown_requested, shutdown_completed
-    startup = EventHook[[]]()
+    startup = EventHook[["Runner"]]()
     request = EventHook[[Request]]()
     shutdown_requested = EventHook[["Runner"]]()
     shutdown_completed = EventHook[["Runner"]]()

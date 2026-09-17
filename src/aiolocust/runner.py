@@ -283,7 +283,7 @@ class Runner:
 
     async def run_test_async(self):
         self.running = True
-        await events.startup.fire()
+        await events.startup.fire(self)
         self.workers = [LoopWorker() for _ in range(self.event_loops)]
         for w in self.workers:
             w.start()
