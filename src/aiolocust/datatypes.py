@@ -1,6 +1,7 @@
 import sys
 import threading
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -28,6 +29,17 @@ class RequestEntry:
 
     def rate(self, start, end) -> float:
         return self.count / (end - start)
+
+    def asdict(self, name, start_time, end_time) -> dict[str, Any]:
+        return {
+            "name": name,
+            "count": self.count,
+            "errorcount": self.errorcount,
+            "sum_ttlb": self.sum_ttlb,
+            "max_ttlb": self.max_ttlb,
+            "rate": self.rate(start_time, end_time),
+            "error_percentage": self.error_percentage,
+        }
 
     @property
     def avg_ttlb(self) -> float:
