@@ -5,8 +5,8 @@ import threading
 import aiohttp
 from utils import assert_search
 
-from aiolocust import rate_limit
-from aiolocust.runner import Runner, Stage, desired_user_count
+from aiolocust import User, rate_limit
+from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count
 from aiolocust.users.http import HttpUser, LocustClientSession
 
 
@@ -256,3 +256,31 @@ def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):  # noqa: A
     assert "Summary" in out
     assert_search(r" / .* \(0.0%\)", out)
     assert "http://localhost:8081" not in out
+
+
+def test_futures_cleanup_on_scale_down():
+    class TestUser(User):
+        async def run(self):
+            await asyncio.sleep(0.01)
+
+    runner = Runner(users=[TestUser], user_count=0)
+    assert len(runner.futures) == 0
+
+    mock_worker = LoopWorker()
+    mock_worker.start()
+
+    try:
+        # Scale up
+        for _ in range(10):
+            runner.add_user(mock_worker)
+        assert len(runner.futures) == 10
+
+        # Scale down
+        for _ in range(10):
+            if runner.running_users:
+                runner.stop_user()
+
+        assert len(runner.futures) == 0, "Memory leak: futures list retained references after scale-down!"
+
+    finally:
+        mock_worker.stop()

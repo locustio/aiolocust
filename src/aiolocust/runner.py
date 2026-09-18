@@ -192,6 +192,7 @@ class Runner:
         self.json_report = json_report
         self.running_users: set[User] = set()
         self.futures: list[asyncio.Future] = []
+        self.user_futures: dict[Any, asyncio.Future] = {}
 
     async def stats_printer(self):
         first = True
@@ -280,10 +281,17 @@ class Runner:
         self.running_users.add(user)
         fut = asyncio.run_coroutine_threadsafe(self.user_loop(user), worker.loop)
         self.futures.append(fut)  # type: ignore
+        self.user_futures[user] = fut  # type: ignore
 
     def stop_user(self):
+        if not self.running_users:
+            return
         user = self.running_users.pop()
         user.running = False
+        # Prune completed or cancelled futures from the tracking list
+        fut = self.user_futures.pop(user, None)
+        if fut:
+            self.futures[:] = [f for f in self.futures if f is not fut]
 
     async def run_test_async(self):
         self.running = True
