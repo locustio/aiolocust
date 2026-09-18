@@ -1,6 +1,6 @@
 import os
-import time
 from collections import defaultdict
+from dataclasses import dataclass
 from threading import Lock
 from types import TracebackType
 
@@ -20,6 +20,13 @@ ttlb_histogram = meter.create_histogram(
 )
 error_counter = defaultdict(int)
 error_counter_lock = Lock()
+
+
+@dataclass(slots=True)
+class StatsRowData:
+    name: str
+    cumulative_entry: RequestEntry
+    current_entry: RequestEntry | None
 
 
 def record_error(message: str) -> None:
@@ -53,8 +60,8 @@ async def record_request(req: Request) -> None:
 
 
 class StatsFormatter:
-    def __init__(self):
-        self.start_time = time.time()
+    def __init__(self, start_time):
+        self.start_time = start_time
         self.last_time = self.start_time
         self.aggregate: dict[str, RequestEntry] = defaultdict(RequestEntry)
         # clear reader, in case this is not the first Stats object
@@ -83,9 +90,7 @@ class StatsFormatter:
 
         return entries
 
-    def _get_rows(self, now, final_summary) -> list[list[str]]:
-        table: list[list[str]] = []
-
+    def _get_values(self) -> list[StatsRowData]:
         current_entries = self._get_entries()
         for url, re in current_entries.items():
             self.aggregate[url] += re
@@ -96,21 +101,16 @@ class StatsFormatter:
         for current_entry in current_entries.values():
             current_total += current_entry
 
+        values: list[StatsRowData] = []
         for url, cumulative_entry in self.aggregate.items():
             cumulative_total += cumulative_entry
-            current_entry = current_entries.get(url, RequestEntry()) if not final_summary else None
-            table.append(self.make_row(url, self.start_time, self.last_time, now, cumulative_entry, current_entry))
+            current_entry = current_entries.get(url, RequestEntry())
+            values.append(StatsRowData(url, cumulative_entry, current_entry))
 
-        if not final_summary:
-            table.append(self.make_row("Total", self.start_time, self.last_time, now, cumulative_total, current_total))
-        else:
-            table.append(self.make_row("Total", self.start_time, self.last_time, now, cumulative_total, None))
+        values.append(StatsRowData("Total", cumulative_total, current_total))
+        return values
 
-        self.last_time = now
-
-        return table
-
-    def get_table(self, endtime: float, final_summary=False):
+    def get_table(self, requests: list[StatsRowData], end: float, final_summary=False):
         table = Table(show_edge=False)
         table.add_column("Name", max_width=30)
         table.add_column("Count", justify="right")
@@ -122,15 +122,17 @@ class StatsFormatter:
         if not final_summary:
             table.add_column("Current rate", justify="right")
 
-        for row in self._get_rows(endtime, final_summary):
-            table.add_row(*row)
+        for request in requests:
+            table.add_row(*self.make_row(request, end, final_summary))
+
+        self.last_time = end
 
         if final_summary:
             table.title = "Summary"
-
         return table
 
-    def get_error_table(self):
+    @staticmethod
+    def get_error_table():
         error_table = Table(show_edge=False)
         error_table.add_column("Count")
         error_table.add_column("Error")
@@ -140,18 +142,17 @@ class StatsFormatter:
 
         return error_table
 
-    @staticmethod
-    def make_row(name: str, start, last, end, cumul_e: RequestEntry, curr_e: RequestEntry | None = None) -> list[str]:
+    def make_row(self, statsrow: StatsRowData, end, final_summary) -> list[str]:
+        cumul_e: RequestEntry = statsrow.cumulative_entry
+        curr_e: RequestEntry | None = statsrow.current_entry
         row = [
-            name,
-            str(cumul_e.count),
+            statsrow.name,
+            str(statsrow.cumulative_entry.count),
             f"{cumul_e.errorcount} ({cumul_e.error_percentage:2.1f}%)",
             f"{cumul_e.avg_ttlb_ms:4.1f}ms",
             f"{cumul_e.max_ttlb_ms:4.1f}ms",
-            f"{cumul_e.rate(start, end):.2f}/s",
+            f"{cumul_e.rate(self.start_time, end):.2f}/s",
         ]
-
-        if curr_e is not None:
-            row.append(f"{curr_e.rate(last, end):.2f}/s")
-
+        if curr_e and not final_summary:
+            row.append(f"{curr_e.rate(self.last_time, end):.2f}/s")
         return row
