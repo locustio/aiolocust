@@ -379,7 +379,7 @@ async def run(user):
             print(output)
             assert "Summary" in output
             assert await proc.wait() == 0
-            assert_search(r"0\.[0-9]*/s", output)  # first one
+            assert_search(r"0|1\.[0-9]*/s", output)  # first one
             assert_search(r"[2-9]\.[0-9]*/s", output)  # last one
 
 

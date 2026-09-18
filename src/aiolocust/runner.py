@@ -10,7 +10,6 @@ import threading
 import time
 import warnings
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -144,7 +143,7 @@ class Runner:
         self.start_time = 0.0
         events.request.add_listener(stats.record_request)
         configure_telemetry()
-        self.sf = stats.StatsFormatter()
+        self.sf: stats.StatsFormatter
         self.console = Console()
         self.users = users
         self.host = host
@@ -198,7 +197,8 @@ class Runner:
         first = True
         while self.running:
             if not first:
-                self.console.print(self.sf.get_table(time.time()))
+                requests = self.sf._get_values()
+                self.console.print(self.sf.get_table(requests, time.time()))
             first = False
             await asyncio.sleep(self.stats_print_interval)
 
@@ -306,6 +306,7 @@ class Runner:
         stats_printer_task = loop.create_task(self.stats_printer())
 
         self.start_time = time.time()
+        self.sf = stats.StatsFormatter(self.start_time)
         self.current_user_count = 0
         current_users_gauge.set(self.current_user_count)
 
@@ -332,7 +333,8 @@ class Runner:
         end_time = time.time()
         stats_printer_task.cancel()
 
-        summary_table = self.sf.get_table(end_time, True)
+        requests = self.sf._get_values()
+        summary_table = self.sf.get_table(requests, end_time, True)
         self.console.print(summary_table)
         error_table = self.sf.get_error_table() if stats.error_counter else None
 
@@ -350,31 +352,31 @@ class Runner:
                 "total": None,  # this is just here for ordering purposes
                 "requests": [],
             }
-            # This stuff duplicates _get_rows a little bit.
-            # We should refactor at some point
-            for name, re in self.sf.aggregate.items():
-                entries["requests"].append(
-                    {
-                        "name": name,
-                        **asdict(re),
-                        "error_percentage": re.error_percentage,
-                        "rate": re.rate(self.start_time, end_time),
-                    }
-                )
-                total.count += re.count
-                total.errorcount += re.errorcount
-                total.sum_ttlb += re.sum_ttlb
-                total.max_ttlb = max(total.max_ttlb, re.max_ttlb)
 
-            entries["total"] = {
-                **asdict(total),
-                "error_percentage": total.error_percentage,
-                "rate": total.rate(self.start_time, end_time),
-            }
+            # name: str
+            # cumulative_entry: RequestEntry
+            # current_entry: RequestEntry | None
+            def jsonify(name: str, re: RequestEntry):
+                return {
+                    "name": name,
+                    "count": re.count,
+                    "errorcount": re.errorcount,
+                    "sum_ttlb": re.sum_ttlb,
+                    "max_ttlb": re.max_ttlb,
+                    "rate": re.rate(self.start_time, end_time),
+                    "error_percentage": re.error_percentage,
+                }
+
+            for request in requests[:-1]:
+                entries["requests"].append(jsonify(request.name, request.cumulative_entry))
+
+            total = requests[-1]
+            entries["total"] = jsonify(total.name, total.cumulative_entry)
 
             self.json_report.parent.mkdir(parents=True, exist_ok=True)
             with open(self.json_report, "w", encoding="utf-8") as write_file:
-                json.dump(entries, write_file)
+                json.dump(entries, write_file, indent=2)
+                write_file.write("\n")
 
         if self.html_report:
             logger.debug(f"Saving HTML report to {self.html_report}")
