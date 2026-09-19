@@ -199,8 +199,8 @@ class Runner:
         first = True
         while self.running:
             if not first:
-                requests = self.sf._get_values()
-                self.console.print(self.sf.get_table(requests, time.time()))
+                rows = self.sf._collect_stats_rows()
+                self.console.print(self.sf.get_table(rows, time.time()))
             first = False
             await asyncio.sleep(self.stats_print_interval)
 
@@ -335,10 +335,10 @@ class Runner:
         end_time = time.time()
         stats_printer_task.cancel()
 
-        requests = self.sf._get_values()
-        summary_table = self.sf.get_table(requests, end_time, True)
-        self.request_stats: list[stats.StatsRowData] = requests[:-1]
-        self.total_stats: stats.StatsRowData = requests[-1]
+        rows = self.sf._collect_stats_rows()
+        summary_table = self.sf.get_table(rows, end_time, True)
+        self.request_stats: list[stats.StatsRowData] = rows[:-1]
+        self.total_stats: stats.StatsRowData = rows[-1]
         self.console.print(summary_table)
         error_table = self.sf.get_error_table() if stats.error_counter else None
 
