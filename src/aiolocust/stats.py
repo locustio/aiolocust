@@ -90,7 +90,7 @@ class StatsFormatter:
 
         return entries
 
-    def _get_values(self) -> list[StatsRowData]:
+    def _collect_stats_rows(self) -> list[StatsRowData]:
         current_entries = self._get_entries()
         for url, re in current_entries.items():
             self.aggregate[url] += re
@@ -147,7 +147,7 @@ class StatsFormatter:
         curr_e: RequestEntry | None = statsrow.current_entry
         row = [
             statsrow.name,
-            str(statsrow.cumulative_entry.count),
+            str(cumul_e.count),
             f"{cumul_e.errorcount} ({cumul_e.error_percentage:2.1f}%)",
             f"{cumul_e.avg_ttlb_ms:4.1f}ms",
             f"{cumul_e.max_ttlb_ms:4.1f}ms",

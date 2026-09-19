@@ -119,6 +119,37 @@ class MyUser(HttpUser):
     assert result.exit_code == 0
 
 
+def test_shutdown_and_exit_code(tmp_path):  # noqa: ARG001
+    try:
+        result = invoke(
+            tmp_path,
+            """
+from aiolocust import HttpUser, events
+
+@events.shutdown_completed.add_listener
+async def on_shutdown_complete(runner):
+    print("shutdown time!")
+    runner.exit_code = 42
+    assert runner.request_stats[0].cumulative_entry.count == 2
+    assert runner.total_stats.cumulative_entry.count == 4
+
+class MyUser(HttpUser):
+    async def run(self):
+        async with self.client.get("http://localhost:8081/", name="first") as resp:
+            pass
+        async with self.client.get("http://localhost:8081/", name="second") as resp:
+            pass
+""",
+            "--iterations",
+            "2",
+        )
+    finally:
+        events._clear_handlers()
+    assert "AssertionError" not in result.output
+    assert "shutdown time!" in result.output
+    assert result.exit_code == 42
+
+
 def test_html_report(http_server, tmp_path):  # noqa: ARG001
     result = invoke(
         tmp_path,

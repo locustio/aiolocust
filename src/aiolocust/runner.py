@@ -19,7 +19,7 @@ from opentelemetry import _logs, metrics, trace
 from rich.console import Console
 
 from aiolocust import User, events, stats
-from aiolocust.datatypes import RequestEntry, SafeCounter, Stage
+from aiolocust.datatypes import SafeCounter, Stage
 from aiolocust.otel import configure_telemetry
 
 # uvloop is faster than the default pure-python asyncio event loop
@@ -149,6 +149,8 @@ class Runner:
         self.host = host
         self.iteration_counter = SafeCounter(iterations)
         self.tracer = trace.get_tracer("aiolocust")
+        self.exit_code = None
+        self.requests: list[stats.StatsRowData]
         config = config or {}
 
         self.forced_shutdown_timer = threading.Timer(config.get("shutdown_timeout", 30), shutdown_timeout)
@@ -197,8 +199,8 @@ class Runner:
         first = True
         while self.running:
             if not first:
-                requests = self.sf._get_values()
-                self.console.print(self.sf.get_table(requests, time.time()))
+                rows = self.sf._collect_stats_rows()
+                self.console.print(self.sf.get_table(rows, time.time()))
             first = False
             await asyncio.sleep(self.stats_print_interval)
 
@@ -333,8 +335,10 @@ class Runner:
         end_time = time.time()
         stats_printer_task.cancel()
 
-        requests = self.sf._get_values()
-        summary_table = self.sf.get_table(requests, end_time, True)
+        rows = self.sf._collect_stats_rows()
+        summary_table = self.sf.get_table(rows, end_time, True)
+        self.request_stats: list[stats.StatsRowData] = rows[:-1]
+        self.total_stats: stats.StatsRowData = rows[-1]
         self.console.print(summary_table)
         error_table = self.sf.get_error_table() if stats.error_counter else None
 
@@ -344,7 +348,6 @@ class Runner:
         if self.json_report:
             logger.debug(f"Saving JSON report to {self.json_report}")
 
-            total = RequestEntry()
             entries: dict[str, Any] = {
                 "start_time": self.start_time,
                 "end_time": end_time,
@@ -353,25 +356,12 @@ class Runner:
                 "requests": [],
             }
 
-            # name: str
-            # cumulative_entry: RequestEntry
-            # current_entry: RequestEntry | None
-            def jsonify(name: str, re: RequestEntry):
-                return {
-                    "name": name,
-                    "count": re.count,
-                    "errorcount": re.errorcount,
-                    "sum_ttlb": re.sum_ttlb,
-                    "max_ttlb": re.max_ttlb,
-                    "rate": re.rate(self.start_time, end_time),
-                    "error_percentage": re.error_percentage,
-                }
+            for request in self.request_stats:
+                entries["requests"].append(request.cumulative_entry.asdict(request.name, self.start_time, end_time))
 
-            for request in requests[:-1]:
-                entries["requests"].append(jsonify(request.name, request.cumulative_entry))
-
-            total = requests[-1]
-            entries["total"] = jsonify(total.name, total.cumulative_entry)
+            entries["total"] = self.total_stats.cumulative_entry.asdict(
+                self.total_stats.name, self.start_time, end_time
+            )
 
             self.json_report.parent.mkdir(parents=True, exist_ok=True)
             with open(self.json_report, "w", encoding="utf-8") as write_file:
