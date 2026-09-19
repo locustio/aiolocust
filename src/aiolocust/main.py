@@ -236,6 +236,7 @@ def main(
             json_report=json_report,
         )
         r.run_test()
+        raise typer.Exit(r.exit_code or 0)
     else:
         typer.echo(f"Error: No User classes or run function defined in {filename}")
 
