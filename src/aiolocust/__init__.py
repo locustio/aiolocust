@@ -22,7 +22,7 @@ class User(ABC):
     def run(self) -> AbcCoroutine[Any, Any, None]: ...
 
     @asynccontextmanager
-    async def cm(self) -> AsyncGenerator[None, Any]:
+    async def cm(self) -> AsyncGenerator[None]:
         """Override this method if you need an async context manager around the run method"""
         yield
 

@@ -55,7 +55,7 @@ class HttpUser(User):
         self.client: LocustClientSession  # type: ignore[assignment] # always set in cm
 
     @asynccontextmanager
-    async def cm(self) -> AsyncGenerator[None, Any]:
+    async def cm(self) -> AsyncGenerator[None]:
         async with LocustClientSession(
             self.runner,
             self.base_url,
