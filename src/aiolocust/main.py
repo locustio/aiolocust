@@ -45,7 +45,7 @@ def load_config(input_string: str) -> dict:
         raise
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     if value:
         print(f"aiolocust {version('aiolocust')}")
         raise typer.Exit()
@@ -121,7 +121,7 @@ def main(
         help="Show the version and exit.",
         show_envvar=False,
     ),
-):
+) -> None:
     # propagate command line args to other modules via config object
     for key, value in locals().items():
         setattr(aiolocust.config, key, value)

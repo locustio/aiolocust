@@ -32,7 +32,7 @@ reader: InMemoryMetricReader = None  # type: ignore
 logger = logging.getLogger(__name__)
 
 
-def configure_telemetry():
+def configure_telemetry() -> None:
     global reader
     if reader:
         return
@@ -59,7 +59,7 @@ def configure_telemetry():
     setup_meter_provider([reader], resource)
 
 
-def setup_logging(level: int, logger_provider: LoggerProvider):
+def setup_logging(level: int, logger_provider: LoggerProvider) -> None:
     otel_handler = LoggingHandler(level=level, logger_provider=logger_provider)
     # avoid double-handling logs emitted by the OTEL handler itself
     # otel_handler.addFilter(lambda record: record.name != "opentelemetry.sdk._logs.export.LoggingHandler")
@@ -123,7 +123,7 @@ def setup_logging(level: int, logger_provider: LoggerProvider):
         )
 
 
-def setup_trace_exporters(tracer_provider: TracerProvider):
+def setup_trace_exporters(tracer_provider: TracerProvider) -> None:
     traces_exporters = {e.strip().lower() for e in os.getenv("OTEL_TRACES_EXPORTER", "otlp").split(",") if e.strip()}
     for exporter in traces_exporters:
         if exporter == "otlp":
@@ -159,7 +159,7 @@ def setup_trace_exporters(tracer_provider: TracerProvider):
             print(f"Unknown traces exporter '{exporter}'. Ignored")
 
 
-def setup_meter_provider(metric_readers: list[MetricReader], resource):
+def setup_meter_provider(metric_readers: list[MetricReader], resource) -> None:
     readers_from_env = get_metric_exporters()
     metrics.set_meter_provider(
         MeterProvider(

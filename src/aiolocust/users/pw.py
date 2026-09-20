@@ -1,4 +1,6 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from opentelemetry import trace
 from playwright.async_api import Page, async_playwright  # pyright: ignore[reportMissingImports]
@@ -17,7 +19,7 @@ browser_instance = None
 class LocustPage:
     """A wrapper for the Playwright Page object to automatically generate OTel spans."""
 
-    def __init__(self, page: Page):
+    def __init__(self, page: Page) -> None:
         self._page = page
 
     async def goto(self, url: str, **kwargs):
@@ -46,13 +48,13 @@ class LocustPage:
 
 
 class PlaywrightUser(User):
-    def __init__(self, runner: Runner | None = None, **kwargs):
+    def __init__(self, runner: Runner | None = None, **kwargs) -> None:
         super().__init__(runner)
         self.kwargs = kwargs
         self.page: LocustPage  # type: ignore[assignment] # always set in cm
 
     @asynccontextmanager
-    async def cm(self):
+    async def cm(self) -> AsyncGenerator[None, Any]:
         global playwright_instance, browser_instance
         if playwright_instance is None:
             playwright_instance = await async_playwright().start()

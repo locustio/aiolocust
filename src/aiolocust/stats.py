@@ -60,7 +60,7 @@ async def record_request(req: Request) -> None:
 
 
 class StatsFormatter:
-    def __init__(self, start_time):
+    def __init__(self, start_time) -> None:
         self.start_time = start_time
         self.last_time = self.start_time
         self.aggregate: dict[str, RequestEntry] = defaultdict(RequestEntry)
@@ -110,7 +110,7 @@ class StatsFormatter:
         values.append(StatsRowData("Total", cumulative_total, current_total))
         return values
 
-    def get_table(self, requests: list[StatsRowData], end: float, final_summary=False):
+    def get_table(self, requests: list[StatsRowData], end: float, final_summary=False) -> Table:
         table = Table(show_edge=False)
         table.add_column("Name", max_width=30)
         table.add_column("Count", justify="right")
@@ -132,7 +132,7 @@ class StatsFormatter:
         return table
 
     @staticmethod
-    def get_error_table():
+    def get_error_table() -> Table:
         error_table = Table(show_edge=False)
         error_table.add_column("Count")
         error_table.add_column("Error")

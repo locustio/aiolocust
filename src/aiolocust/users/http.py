@@ -1,7 +1,7 @@
 import ssl
 import time
 from asyncio import Future
-from collections.abc import Coroutine
+from collections.abc import AsyncGenerator, Coroutine
 from contextlib import asynccontextmanager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
@@ -49,13 +49,13 @@ class HttpUser(User):
         ...
     """
 
-    def __init__(self, runner: Runner | None = None, base_url: str | None = None):
+    def __init__(self, runner: Runner | None = None, base_url: str | None = None) -> None:
         super().__init__(runner)
         self.base_url = base_url or runner.host if runner else None
         self.client: LocustClientSession  # type: ignore[assignment] # always set in cm
 
     @asynccontextmanager
-    async def cm(self):
+    async def cm(self) -> AsyncGenerator[None, Any]:
         async with LocustClientSession(
             self.runner,
             self.base_url,
@@ -66,7 +66,7 @@ class HttpUser(User):
 
 
 class LocustResponse(ClientResponse):
-    def __init__(self, *args, **kwargs: dict[str, Any]):
+    def __init__(self, *args, **kwargs: dict[str, Any]) -> None:
         super().__init__(*args, **kwargs)
         self.error: Exception | bool | str | None = None
         self.bytes: bytes | None = None
@@ -74,7 +74,7 @@ class LocustResponse(ClientResponse):
 
 
 class LocustRequestContextManager(_RequestContextManager):
-    def __init__(self, name: str | None, coro: Coroutine[Future[Any], None, ClientResponse]):
+    def __init__(self, name: str | None, coro: Coroutine[Future[Any], None, ClientResponse]) -> None:
         super().__init__(coro)
         # slightly hacky way to get the URL, but passing it explicitly would be a mess
         # and it is only used for connection errors where the exception doesn't contain URL
@@ -155,7 +155,7 @@ class LocustRequestContextManager(_RequestContextManager):
 
 
 class LocustClientSession(ClientSession):
-    def __init__(self, runner: Runner | None = None, base_url=None, **kwargs):
+    def __init__(self, runner: Runner | None = None, base_url=None, **kwargs) -> None:
         self.runner: Runner = runner  # pyright: ignore[reportAttributeAccessIssue] # always set outside of unit testing
         super().__init__(base_url=base_url, response_class=LocustResponse, **kwargs)
 
