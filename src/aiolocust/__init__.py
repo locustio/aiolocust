@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from collections.abc import Coroutine as AbcCoroutine
 from contextlib import asynccontextmanager
 from functools import wraps
@@ -9,11 +9,12 @@ from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 P = ParamSpec("P")
 R = TypeVar("R")
 UserT = TypeVar("UserT", bound="User")
+
 from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 
 class User(ABC):
-    def __init__(self, runner: Runner | None = None, **kwargs):
+    def __init__(self, runner: Runner | None = None, **kwargs: dict[str, Any]) -> None:
         self.runner: Runner = runner  # pyright: ignore[reportAttributeAccessIssue] # always set outside of unit testing
         self.running = True
 
@@ -21,7 +22,7 @@ class User(ABC):
     def run(self) -> AbcCoroutine[Any, Any, None]: ...
 
     @asynccontextmanager
-    async def cm(self):
+    async def cm(self) -> AsyncGenerator[None]:
         """Override this method if you need an async context manager around the run method"""
         yield
 
@@ -56,7 +57,7 @@ import threading
 
 
 class LimiterPortal:
-    def __init__(self, rate: Rate):
+    def __init__(self, rate: Rate) -> None:
         self._loop = asyncio.new_event_loop()
         self._ready = threading.Event()
 
@@ -68,7 +69,7 @@ class LimiterPortal:
         self._thread.start()
         self._ready.wait()
 
-    def _run(self, rate: Rate):
+    def _run(self, rate: Rate) -> None:
         asyncio.set_event_loop(self._loop)
         self._limiter = Limiter(StateBucket([rate], algorithm=TokenBucket()))
         self._shutdown = asyncio.Event()
@@ -79,7 +80,7 @@ class LimiterPortal:
         future = asyncio.run_coroutine_threadsafe(self._acquire(), self._loop)
         return await asyncio.shield(asyncio.wrap_future(future))
 
-    async def _acquire(self):
+    async def _acquire(self) -> bool:
         # we race these two tasks against eachother to avoid waiting for try_aquire_async
         # during shutdown, because that will take a long time if there are a lot of queued iterations
         acquire = asyncio.create_task(self._limiter.try_acquire_async("global"))
@@ -98,10 +99,10 @@ class LimiterPortal:
         await asyncio.gather(shutdown, return_exceptions=True)
         return acquire.result()
 
-    def request_shutdown(self):
+    def request_shutdown(self) -> None:
         self._loop.call_soon_threadsafe(self._shutdown.set)
 
-    def close(self):
+    def close(self) -> None:
         self._loop.call_soon_threadsafe(self._loop.stop)
         self._thread.join()
 

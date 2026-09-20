@@ -28,11 +28,11 @@ IGNORED_METHODS = os.getenv("LOCUST_IGNORED_METHODS", "options").split(",")
 
 
 class LocustExporter:
-    def __init__(self):
+    def __init__(self) -> None:
         self.filename = os.getenv("LOCUST_LOCUSTFILE", "locustfile.py")
         self.new_file()
 
-    def new_file(self):
+    def new_file(self) -> None:
         with open(self.filename, "w") as f:
             f.write(
                 f"""# This file was generated using mitmproxy at {datetime.now().strftime("%Y-%m-%dT%H:%M:%S")}
@@ -43,7 +43,7 @@ async def run(self: HttpUser):
 """
             )
 
-    def response(self, flow: http.HTTPFlow):
+    def response(self, flow: http.HTTPFlow) -> None:
         method: str = flow.request.method.lower()
         url: str = flow.request.url
         headers = dict(flow.request.headers)

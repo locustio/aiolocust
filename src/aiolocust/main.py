@@ -7,6 +7,7 @@ import sys
 import traceback
 from importlib.metadata import version
 from pathlib import Path
+from types import TracebackType
 from typing import Annotated
 
 import click
@@ -44,7 +45,7 @@ def load_config(input_string: str) -> dict:
         raise
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     if value:
         print(f"aiolocust {version('aiolocust')}")
         raise typer.Exit()
@@ -120,7 +121,7 @@ def main(
         help="Show the version and exit.",
         show_envvar=False,
     ),
-):
+) -> None:
     # propagate command line args to other modules via config object
     for key, value in locals().items():
         setattr(aiolocust.config, key, value)
@@ -132,7 +133,7 @@ def main(
         # Happens when we were launched as a subprocess with CREATE_NEW_PROCESS_GROUP, like within pytest
         ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
 
-    log_level_id = getattr(logging, log_level.value.upper())
+    getattr(logging, log_level.value.upper())
 
     configure_telemetry()
 
@@ -170,7 +171,7 @@ def main(
 
     SDK_ROOT = Path(__file__).resolve().parent
 
-    def is_ignored_frame(tb):
+    def is_ignored_frame(tb: TracebackType) -> bool:
         filename = tb.tb_frame.f_code.co_filename
 
         # 1. Skip frozen / synthetic frames
@@ -206,7 +207,7 @@ def main(
 
         AioHttpClientInstrumentor().instrument()
 
-    def is_user_class(item) -> bool:
+    def is_user_class(item: type) -> bool:
         """
         Check if a variable is a runnable (non-abstract) User class
         """

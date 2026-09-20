@@ -47,7 +47,7 @@ try:
 
     EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError, playwright.async_api.TimeoutError)
 except ImportError:
-    EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)
+    EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)  # pyright: ignore[reportConstantRedefinition]
 
 
 # We're going to inherit from ClientSession, even though it is considered internal,
@@ -84,22 +84,22 @@ def desired_user_count(stages: list[Stage], elapsed: float) -> int | None:
     return None
 
 
-def shutdown_timeout():
+def shutdown_timeout() -> None:
     logger.warning("Shutdown timed out")
     os._exit(124)  # GNU timeout EXIT_TIMEDOUT code
 
 
 class LoopWorker(threading.Thread):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(daemon=True)
         self.loop = asyncio.new_event_loop()
 
-    def run(self):
+    def run(self) -> None:
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
         self.loop.close()
 
-    async def _cancel_pending_tasks(self):
+    async def _cancel_pending_tasks(self) -> None:
         # Cancel any background tasks (e.g. rate limiter) before stopping the loop.
         # Without this, we would get something like:
         # Exception ignored while calling asyncio function ... ImportError: sys.meta_path is None, Python is likely shutting down
@@ -109,7 +109,7 @@ class LoopWorker(threading.Thread):
         if pending_tasks:
             await asyncio.gather(*pending_tasks, return_exceptions=True)
 
-    def stop(self):
+    def stop(self) -> None:
         if self.loop.is_closed():
             return
 
@@ -136,7 +136,7 @@ class Runner:
         event_loops: int | None = None,
         html_report: Path | None = None,
         json_report: Path | None = None,
-    ):
+    ) -> None:
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         self.running = False
@@ -195,7 +195,7 @@ class Runner:
         self.futures: list[asyncio.Future] = []
         self.user_futures: dict[Any, asyncio.Future] = {}
 
-    async def stats_printer(self):
+    async def stats_printer(self) -> None:
         first = True
         while self.running:
             if not first:
@@ -204,7 +204,7 @@ class Runner:
             first = False
             await asyncio.sleep(self.stats_print_interval)
 
-    async def shutdown(self, reason=None):
+    async def shutdown(self, reason=None) -> None:
         if not self.running:
             logger.debug("Already shutting down, ignoring shutdown() call")
             return
@@ -218,7 +218,7 @@ class Runner:
         for user in list(self.running_users):
             user.running = False
 
-    def finalize_shutdown(self):
+    def finalize_shutdown(self) -> None:
         for fut in self.futures:
             _ = fut.result()
 
@@ -241,7 +241,7 @@ class Runner:
         # logger.debug("Tracer provider shut down")
         self.forced_shutdown_timer.cancel()
 
-    async def user_loop(self, user_instance: User):
+    async def user_loop(self, user_instance: User) -> None:
         async with user_instance.cm():
             while user_instance.running and self.running:
                 if self.iteration_counter.increment():
@@ -262,7 +262,7 @@ class Runner:
                     stats.record_error(str(e))
                     logger.exception(e)
 
-    def signal_handler(self, signal: int, _frame):
+    def signal_handler(self, signal: int, _frame) -> None:
         if not self.running:
             # probably repeat signal, just exit immediately
             os._exit(128 + signal)  # this is linux standard, apparently
@@ -275,17 +275,17 @@ class Runner:
 
         loop.call_soon_threadsafe(schedule_shutdown)
 
-    def run_test(self):
+    def run_test(self) -> None:
         asyncio.run(self.run_test_async(), loop_factory=new_event_loop)
 
-    def add_user(self, worker: LoopWorker):
+    def add_user(self, worker: LoopWorker) -> None:
         user = self.users[0](self)
         self.running_users.add(user)
         fut = asyncio.run_coroutine_threadsafe(self.user_loop(user), worker.loop)
         self.futures.append(fut)  # type: ignore
         self.user_futures[user] = fut  # type: ignore
 
-    def stop_user(self):
+    def stop_user(self) -> None:
         if not self.running_users:
             return
         user = self.running_users.pop()
@@ -295,7 +295,7 @@ class Runner:
         if fut:
             self.futures[:] = [f for f in self.futures if f is not fut]
 
-    async def run_test_async(self):
+    async def run_test_async(self) -> None:
         self.running = True
         await events.startup.fire(self)
         self.workers = [LoopWorker() for _ in range(self.event_loops)]

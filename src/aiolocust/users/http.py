@@ -1,8 +1,9 @@
 import ssl
 import time
 from asyncio import Future
-from collections.abc import Coroutine
+from collections.abc import AsyncGenerator, Coroutine
 from contextlib import asynccontextmanager
+from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -48,13 +49,13 @@ class HttpUser(User):
         ...
     """
 
-    def __init__(self, runner: Runner | None = None, base_url=None):
+    def __init__(self, runner: Runner | None = None, base_url: str | None = None) -> None:
         super().__init__(runner)
         self.base_url = base_url or runner.host if runner else None
         self.client: LocustClientSession  # type: ignore[assignment] # always set in cm
 
     @asynccontextmanager
-    async def cm(self):
+    async def cm(self) -> AsyncGenerator[None]:
         async with LocustClientSession(
             self.runner,
             self.base_url,
@@ -65,21 +66,21 @@ class HttpUser(User):
 
 
 class LocustResponse(ClientResponse):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs: dict[str, Any]) -> None:
         super().__init__(*args, **kwargs)
         self.error: Exception | bool | str | None = None
-        self._bytes: bytes | None = None
+        self.bytes: bytes | None = None
         self.span: Span  # type: ignore
 
 
 class LocustRequestContextManager(_RequestContextManager):
-    def __init__(self, name, coro: Coroutine[Future[Any], None, ClientResponse]):
+    def __init__(self, name: str | None, coro: Coroutine[Future[Any], None, ClientResponse]) -> None:
         super().__init__(coro)
         # slightly hacky way to get the URL, but passing it explicitly would be a mess
         # and it is only used for connection errors where the exception doesn't contain URL
-        self.str_or_url = coro._coro.cr_frame.f_locals["str_or_url"]  # type: ignore
-        self.method = coro._coro.cr_frame.f_locals["method"]  # type: ignore
-        self._base_url = coro._coro.cr_frame.f_locals["self"]._base_url  # type: ignore
+        self.str_or_url: str = coro._coro.cr_frame.f_locals["str_or_url"]  # type: ignore
+        self.method: str = coro._coro.cr_frame.f_locals["method"]  # type: ignore
+        self._base_url: str | None = coro._coro.cr_frame.f_locals["self"]._base_url  # type: ignore
         self._resp: LocustResponse  # type: ignore
         self._token: Token[Context]
         self.span: Span
@@ -113,12 +114,17 @@ class LocustRequestContextManager(_RequestContextManager):
         else:
             self.url = super()._resp.url
             self.ttfb = time.perf_counter() - self.start_time
-            self._resp._bytes = await self._resp.read()
+            self._resp.bytes = await self._resp.read()
             self.ttlb = time.perf_counter() - self.start_time
         self._resp.span = self.span
         return self._resp
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         await super().__aexit__(exc_type, exc_val, exc_tb)
         if self._resp.error is None:  # no explicit value set in with-block
             try:
@@ -126,8 +132,8 @@ class LocustRequestContextManager(_RequestContextManager):
             except (ClientResponseError, ClientConnectorError) as e:
                 self._resp.error = e
             if exc_val:  # overwrite if there was an explicit exception (e.g. an assert or crash)
-                exc_val.exc_tb = exc_tb  # add traceback so we can add line number info to error summary
-                self._resp.error = exc_val
+                exc_val.exc_tb = exc_tb  # type: ignore # add traceback so we can add line number info to error summary
+                self._resp.error = exc_val  # type: ignore
         if self._resp.error:
             self.span.set_status(StatusCode.ERROR)
             self.span.set_attribute("exception.type", type(self._resp.error).__name__)
@@ -149,7 +155,7 @@ class LocustRequestContextManager(_RequestContextManager):
 
 
 class LocustClientSession(ClientSession):
-    def __init__(self, runner: Runner | None = None, base_url=None, **kwargs):
+    def __init__(self, runner: Runner | None = None, base_url=None, **kwargs) -> None:
         self.runner: Runner = runner  # pyright: ignore[reportAttributeAccessIssue] # always set outside of unit testing
         super().__init__(base_url=base_url, response_class=LocustResponse, **kwargs)
 

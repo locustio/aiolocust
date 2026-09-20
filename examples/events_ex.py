@@ -7,7 +7,7 @@ from aiolocust.datatypes import Request
 
 class MyUser(HttpUser):
     async def run(self):
-        async with self.client.get("http://localhost:8080/") as resp:
+        async with self.client.get("http://localhost:8080/"):
             pass
 
 

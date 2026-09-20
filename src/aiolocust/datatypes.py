@@ -19,13 +19,12 @@ class RequestEntry:
     sum_ttlb: float = 0.0
     max_ttlb: float = 0.0
 
-    def __iadd__(self, other: RequestEntry):
-        if isinstance(other, RequestEntry):
-            self.count += other.count
-            self.errorcount += other.errorcount
-            self.sum_ttlb += other.sum_ttlb
-            self.max_ttlb = max(self.max_ttlb, other.max_ttlb)
-            return self
+    def __iadd__(self, other: RequestEntry) -> RequestEntry:
+        self.count += other.count
+        self.errorcount += other.errorcount
+        self.sum_ttlb += other.sum_ttlb
+        self.max_ttlb = max(self.max_ttlb, other.max_ttlb)
+        return self
 
     def rate(self, start, end) -> float:
         return self.count / (end - start)
@@ -67,7 +66,7 @@ class Stage:
 class SafeCounter:
     """A thread-safe counter."""
 
-    def __init__(self, limit: int | None = None):
+    def __init__(self, limit: int | None = None) -> None:
         self.value = 0
         self.limit = limit if limit is not None else sys.maxsize
         self.lock = threading.Lock()

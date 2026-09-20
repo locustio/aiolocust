@@ -11,7 +11,7 @@ P = ParamSpec("P")
 
 
 class EventHook[**P]:
-    def __init__(self):
+    def __init__(self) -> None:
         self._handlers: list[Callable[P, Awaitable[None]]] = []
         self._logger = logging.getLogger(__name__)  # get logger here, once it has been initialized
 
@@ -36,7 +36,7 @@ shutdown_requested = EventHook[["Runner"]]()
 shutdown_completed = EventHook[["Runner"]]()
 
 
-def _clear_handlers():
+def _clear_handlers() -> None:  # pyright: ignore[reportUnusedFunction]
     global startup, request, shutdown_requested, shutdown_completed
     startup = EventHook[["Runner"]]()
     request = EventHook[[Request]]()
