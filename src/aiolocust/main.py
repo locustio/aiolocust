@@ -7,6 +7,7 @@ import sys
 import traceback
 from importlib.metadata import version
 from pathlib import Path
+from types import TracebackType
 from typing import Annotated
 
 import click
@@ -132,7 +133,7 @@ def main(
         # Happens when we were launched as a subprocess with CREATE_NEW_PROCESS_GROUP, like within pytest
         ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
 
-    log_level_id = getattr(logging, log_level.value.upper())
+    getattr(logging, log_level.value.upper())
 
     configure_telemetry()
 
@@ -170,7 +171,7 @@ def main(
 
     SDK_ROOT = Path(__file__).resolve().parent
 
-    def is_ignored_frame(tb):
+    def is_ignored_frame(tb: TracebackType) -> bool:
         filename = tb.tb_frame.f_code.co_filename
 
         # 1. Skip frozen / synthetic frames
@@ -206,7 +207,7 @@ def main(
 
         AioHttpClientInstrumentor().instrument()
 
-    def is_user_class(item) -> bool:
+    def is_user_class(item: type) -> bool:
         """
         Check if a variable is a runnable (non-abstract) User class
         """

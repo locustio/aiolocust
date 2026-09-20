@@ -9,7 +9,7 @@ from aiolocust import events
 from aiolocust.main import app
 
 
-def _timeout_handler(_signum, _frame):
+def _timeout_handler(_signum, _frame):  # pyright: ignore[reportUnusedFunction]
     if bool(os.environ.get("VSCODE_CLI")):
         pass  # disable timeout when debugging
     else:
@@ -33,7 +33,7 @@ from aiolocust import HttpUser
 
 class MyUser(HttpUser):
     async def run(self):
-        async with self.client.get("http://localhost:8081/") as resp:
+        async with self.client.get("http://localhost:8081/"):
             pass
     """,
         "--iterations",

@@ -13,7 +13,7 @@ from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 
 class User(ABC):
-    def __init__(self, runner: Runner | None = None, **kwargs):
+    def __init__(self, runner: Runner | None = None, **kwargs: dict[str, Any]):
         self.runner: Runner = runner  # pyright: ignore[reportAttributeAccessIssue] # always set outside of unit testing
         self.running = True
 

@@ -47,7 +47,7 @@ try:
 
     EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError, playwright.async_api.TimeoutError)
 except ImportError:
-    EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)
+    EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)  # pyright: ignore[reportConstantRedefinition]
 
 
 # We're going to inherit from ClientSession, even though it is considered internal,

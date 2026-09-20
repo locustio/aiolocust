@@ -33,7 +33,7 @@ classifiers = [
 package = true
 
 [build-system]
-requires = ["uv_build>=0.10.0,<0.12.0"]
+requires = ["uv_build>=0.11.0,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.ruff]
@@ -71,4 +71,21 @@ filterwarnings = ["ignore:Inheritance class LocustClientSession from ClientSessi
 asyncio_mode = "auto"
 
 [tool.pyright]
-typeCheckingMode = "standard" # this is the default when running pyright on command line, but needed to help vscode
+typeCheckingMode = "strict"
+reportMissingTypeArgument = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportMissingParameterType = false
+reportPrivateUsage = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportMissingTypeStubs = false
+
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportUnusedVariable = false
+
+[[tool.pyright.executionEnvironments]]
+root = "examples/testdata_from_mongodb.py"
+reportUnusedVariable = false
+reportMissingImports = false

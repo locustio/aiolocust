@@ -18,7 +18,7 @@ meter = metrics.get_meter("locust")
 ttlb_histogram = meter.create_histogram(
     "locust.client.duration", unit="s", description="Time to last byte for requests"
 )
-error_counter = defaultdict(int)
+error_counter: dict[str, int] = defaultdict(int)
 error_counter_lock = Lock()
 
 

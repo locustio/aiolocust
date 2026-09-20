@@ -20,12 +20,11 @@ class RequestEntry:
     max_ttlb: float = 0.0
 
     def __iadd__(self, other: RequestEntry):
-        if isinstance(other, RequestEntry):
-            self.count += other.count
-            self.errorcount += other.errorcount
-            self.sum_ttlb += other.sum_ttlb
-            self.max_ttlb = max(self.max_ttlb, other.max_ttlb)
-            return self
+        self.count += other.count
+        self.errorcount += other.errorcount
+        self.sum_ttlb += other.sum_ttlb
+        self.max_ttlb = max(self.max_ttlb, other.max_ttlb)
+        return self
 
     def rate(self, start, end) -> float:
         return self.count / (end - start)
