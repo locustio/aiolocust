@@ -37,7 +37,7 @@ class HttpUser(User):
     ssl_context: None | ssl.SSLContext = None
     """
     Used to create a custom TCPConnector for LocustClientSession,
-    instead of having to pass ssl=ssl_context on each request.
+    instead of having to pass `ssl=ssl_context` on each request.
 
     For example, to use OS-managed trust you could do something like this:
     ```
