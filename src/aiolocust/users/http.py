@@ -24,7 +24,7 @@ class HttpUser(User):
     session_kwargs: dict[str, Any] = {"timeout": aiohttp.ClientTimeout(60.0)}
     """
     Extra arguments to pass to aiohttp.ClientSession, e.g.
-    ```
+    ```python
     class TimeoutUser(HttpUser):
         session_kwargs = {
             "timeout": aiohttp.ClientTimeout(0.0001),
@@ -40,7 +40,7 @@ class HttpUser(User):
     instead of having to pass `ssl=ssl_context` on each request.
 
     For example, to use OS-managed trust you could do something like this:
-    ```
+    ```python
     import truststore
     from aiolocust import HttpUser
 
