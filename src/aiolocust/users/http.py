@@ -40,13 +40,14 @@ class HttpUser(User):
     instead of having to pass ssl=ssl_context on each request.
 
     For example, to use OS-managed trust you could do something like this:
-
+    ```
     import truststore
     from aiolocust import HttpUser
 
     class MyUser(HttpUser):
         ssl_context = truststore.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
         ...
+    ```
     """
 
     def __init__(self, runner: Runner | None = None, base_url: str | None = None) -> None:

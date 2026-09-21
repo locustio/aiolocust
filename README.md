@@ -211,7 +211,7 @@ aiolocust
 
 ## API docs
 
-See [documentation](https://locustio.github.io/aiolocust/).
+See [documentation](https://locustio.github.io/aiolocust/api/).
 
 ## Contributions
 
