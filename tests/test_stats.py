@@ -15,12 +15,45 @@ def configure_test_telemetry():
     configure_telemetry()
 
 
-async def test_collect_stats_rows_and_get_table():
+async def testcollect_stats_rows():
+    start_time = time.time()
+    sf = StatsFormatter(start_time)
+    requests = sf.collect_stats_rows(start_time + 1)
+    await record_request(Request("foo", 1, 1, None))
+    await record_request(Request("foo", 1, 2, True))
+    await record_request(Request("bar", 1, 1, None))
+    await record_request(Request("bar", 1, 2, True))
+    requests = sf.collect_stats_rows(start_time + 4)
+    for request in requests:
+        print(request)
+    assert len(requests) == 3
+    assert requests[0].name == "foo"
+    assert requests[0].count == 2
+    assert requests[0].errorcount == 1
+    assert requests[1].name == "bar"
+    assert requests[0].rate == pytest.approx(2 / 4)
+    assert requests[0].current_rate == pytest.approx(2 / 3)
+    total = requests[-1]
+    assert total.name == "Total"
+    assert total.rate == pytest.approx(1)
+    assert total.current_rate == pytest.approx(4 / 3)
+
+    await record_request(Request("foo", 1, 1, None))
+    requests = sf.collect_stats_rows(start_time + 5)
+    for request in requests:
+        print(request)
+    assert requests[0].name == "foo"
+    assert requests[0].rate == pytest.approx(3 / 5)
+    assert requests[0].current_rate == pytest.approx(1.0)
+    assert requests[1].current_rate == pytest.approx(0.0)
+
+
+async def testcollect_stats_rows_and_get_table():
     f = io.StringIO()
     start_time = time.time()
     console = Console(file=f)
     sf = StatsFormatter(start_time)
-    console.print(sf.get_table(sf._collect_stats_rows(), start_time + 1))
+    console.print(sf.get_table(sf.collect_stats_rows(start_time + 1)))
     output = f.getvalue()
     f.seek(0)
     assert "Total" in output
@@ -29,7 +62,7 @@ async def test_collect_stats_rows_and_get_table():
     await record_request(Request("foo", 1, 2, True))
     await record_request(Request("bar", 1, 1, None))
     await record_request(Request("bar", 1, 2, True))
-    console.print(sf.get_table(sf._collect_stats_rows(), start_time + 2))
+    console.print(sf.get_table(sf.collect_stats_rows(start_time + 2)))
     output = f.getvalue()
     f.seek(0)
     assert "foo" in output
@@ -39,7 +72,7 @@ async def test_collect_stats_rows_and_get_table():
     assert_search(r"foo .* 2.00/s", output)
     assert_search(r"Total .* 4.00/s", output)
 
-    console.print(sf.get_table(sf._collect_stats_rows(), start_time + 3, True))
+    console.print(sf.get_table(sf.collect_stats_rows(start_time + 3), True))
     output = f.getvalue()
     f.seek(0)
     assert_search(r"foo .* 0.67/s", output)
@@ -59,7 +92,7 @@ async def test_cumulative_printout():
     await record_request(Request("bar", 3, 3, None))
     await record_request(Request("baz", 4, 4, True))
 
-    console.print(sf.get_table(sf._collect_stats_rows(), start_time + 2))
+    console.print(sf.get_table(sf.collect_stats_rows(start_time + 2)))
     output = f.getvalue()
     print(output)
     assert_search(r"foo .* 2 .* 1.00/s .* 1.00/s", output)
@@ -72,7 +105,7 @@ async def test_cumulative_printout():
     await record_request(Request("foo", 1, 1, None))
     await record_request(Request("bar", 2, 2, None))
     await record_request(Request("baz", 3, 3, None))
-    console.print(sf.get_table(sf._collect_stats_rows(), start_time + 4))
+    console.print(sf.get_table(sf.collect_stats_rows(start_time + 4)))
     output = f.getvalue()
     print(output)
     assert_search(r"foo .* 3 .* 0.75/s .* 0.50/s", output)
@@ -85,7 +118,7 @@ async def test_cumulative_printout():
     await record_request(Request("foo", 1, 1, None))
     await record_request(Request("foo", 2, 2, None))
     await record_request(Request("bar", 3, 3, None))
-    console.print(sf.get_table(sf._collect_stats_rows(), start_time + 5, True))
+    console.print(sf.get_table(sf.collect_stats_rows(start_time + 5), True))
     output = f.getvalue()
     print(output)
     assert "Current rate" not in output
@@ -102,7 +135,7 @@ async def test_error_pct_summary():
     await record_request(Request("bar", 3, 3, None))
     await record_request(Request("bar", 4, 4, Exception("an exception")))
     await record_request(Request("baz", 5, 5, True))
-    console.print(sf.get_table(sf._collect_stats_rows(), start_time + 1, True))
+    console.print(sf.get_table(sf.collect_stats_rows(start_time + 1), True))
     console.print(sf.get_error_table())
     output = f.getvalue()
     print(output)

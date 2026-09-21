@@ -100,7 +100,23 @@ jobs:
           grep -E 'Shutdown requested, 1 iterations' locust_output.txt
           grep -E 'Shutdown completed, no new requests can ever happen after this point' locust_output.txt
           grep -E 'http://localhost:8080/,' requests.csv
-          
+
+      - name: threshold_validation.py
+        env:
+          OTEL_TRACES_EXPORTER: console
+        run: |
+          set +e # dont exit on error
+          set -o pipefail # preserve exit code from uv run instead of using tee's exit code
+
+          uv run aiolocust examples/threshold_validation.py --iterations 1 | tee locust_output.txt
+
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+
+          if [ "$exit_code" -ne 42 ]; then
+            echo "Expected exit code 42, got $exit_code"
+            exit 1
+          fi
 
   perftest:
     runs-on: ubuntu-latest
