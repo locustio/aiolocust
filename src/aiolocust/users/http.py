@@ -21,6 +21,10 @@ if TYPE_CHECKING:  # avoid circular import
 
 
 class HttpUser(User):
+    """
+    Base class for HTTP users.
+    """
+
     session_kwargs: dict[str, Any] = {"timeout": aiohttp.ClientTimeout(60.0)}
     """
     Extra arguments to pass to aiohttp.ClientSession, e.g.
