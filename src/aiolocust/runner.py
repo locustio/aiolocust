@@ -149,7 +149,7 @@ class Runner:
         self.host = host
         self.iteration_counter = SafeCounter(iterations)
         self.tracer = trace.get_tracer("aiolocust")
-        self.exit_code = None
+        self.exit_code: int | None = None
         self.requests: list[stats.StatsRowData]
         config = config or {}
 
@@ -199,8 +199,8 @@ class Runner:
         first = True
         while self.running:
             if not first:
-                rows = self.sf._collect_stats_rows()
-                self.console.print(self.sf.get_table(rows, time.time()))
+                rows = self.sf.collect_stats_rows(time.time())
+                self.console.print(self.sf.get_table(rows))
             first = False
             await asyncio.sleep(self.stats_print_interval)
 
@@ -335,8 +335,8 @@ class Runner:
         end_time = time.time()
         stats_printer_task.cancel()
 
-        rows = self.sf._collect_stats_rows()
-        summary_table = self.sf.get_table(rows, end_time, True)
+        rows = self.sf.collect_stats_rows(end_time)
+        summary_table = self.sf.get_table(rows, True)
         self.request_stats: list[stats.StatsRowData] = rows[:-1]
         self.total_stats: stats.StatsRowData = rows[-1]
         self.console.print(summary_table)
@@ -357,11 +357,9 @@ class Runner:
             }
 
             for request in self.request_stats:
-                entries["requests"].append(request.cumulative_entry.asdict(request.name, self.start_time, end_time))
+                entries["requests"].append(request.asdict())
 
-            entries["total"] = self.total_stats.cumulative_entry.asdict(
-                self.total_stats.name, self.start_time, end_time
-            )
+            entries["total"] = self.total_stats.asdict()
 
             self.json_report.parent.mkdir(parents=True, exist_ok=True)
             with open(self.json_report, "w", encoding="utf-8") as write_file:
