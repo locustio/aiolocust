@@ -215,6 +215,6 @@ See [documentation](https://locustio.github.io/aiolocust/api/).
 
 ## Contributions
 
-This project is still in an early phase. Do let us know if you want to contribute or have feedback on any design choices!
+Do let us know if you want to contribute or have feedback on any design choices!
 
 You can reach us on the same [Discord](https://discord.gg/faeXQY82Zs) as the main Locust project.
