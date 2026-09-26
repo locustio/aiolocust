@@ -284,3 +284,34 @@ def test_futures_cleanup_on_scale_down():
 
     finally:
         mock_worker.stop()
+
+
+def test_multiple_user_classes():
+    created = []
+
+    class UserA(User):
+        def __init__(self, runner):
+            created.append("A")
+            super().__init__(runner)
+
+        async def run(self):
+            pass
+
+    class UserB(User):
+        def __init__(self, runner):
+            created.append("B")
+            super().__init__(runner)
+
+        async def run(self):
+            pass
+
+    runner = Runner(
+        [UserA, UserB],
+        user_count=2,
+        iterations=1,
+        event_loops=1,
+    )
+
+    runner.run_test()
+
+    assert created == ["A", "B"]

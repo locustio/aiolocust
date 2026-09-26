@@ -146,6 +146,7 @@ class Runner:
         self.sf: stats.StatsFormatter
         self.console = Console()
         self.users = users
+        self.next_user_index = 0
         self.host = host
         self.iteration_counter = SafeCounter(iterations)
         self.tracer = trace.get_tracer("aiolocust")
@@ -279,7 +280,9 @@ class Runner:
         asyncio.run(self.run_test_async(), loop_factory=new_event_loop)
 
     def add_user(self, worker: LoopWorker) -> None:
-        user = self.users[0](self)
+        user_class = self.users[self.next_user_index % len(self.users)]
+        self.next_user_index += 1
+        user = user_class(self)
         self.running_users.add(user)
         fut = asyncio.run_coroutine_threadsafe(self.user_loop(user), worker.loop)
         self.futures.append(fut)  # type: ignore
