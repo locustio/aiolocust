@@ -290,28 +290,21 @@ def test_multiple_user_classes():
     created = []
 
     class UserA(User):
-        def __init__(self, runner):
-            created.append("A")
-            super().__init__(runner)
-
         async def run(self):
-            pass
+            created.append("A")
+            await asyncio.sleep(0.001)
 
     class UserB(User):
-        def __init__(self, runner):
-            created.append("B")
-            super().__init__(runner)
-
         async def run(self):
-            pass
+            created.append("B")
+            await asyncio.sleep(0.001)
 
     runner = Runner(
         [UserA, UserB],
-        user_count=2,
-        iterations=1,
+        user_count=3,
+        iterations=3,
         event_loops=1,
     )
-
     runner.run_test()
 
-    assert created == ["A", "B"]
+    assert created == ["A", "B", "A"]
