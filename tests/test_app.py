@@ -258,3 +258,31 @@ async def run(user):
     assert "http://localhost:" in result.output
     assert "0 (0.0%)" in result.output
     assert result.exit_code == 0
+
+
+def test_multiple_user_class_detection(tmp_path):
+    result = invoke(
+        tmp_path,
+        """
+import asyncio
+from aiolocust import User
+
+class UserA(User):
+    async def run(self):
+        print("RUN_USER_A")
+        await asyncio.sleep(0.001)
+
+class UserB(User):
+    async def run(self):
+        print("RUN_USER_B")
+        await asyncio.sleep(0.001)
+""",
+        "--iterations",
+        "2",
+        "-u",
+        "2",
+    )
+
+    assert "RUN_USER_A" in result.output
+    assert "RUN_USER_B" in result.output
+    assert result.exit_code == 0
