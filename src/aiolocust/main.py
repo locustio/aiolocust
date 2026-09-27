@@ -10,7 +10,6 @@ from pathlib import Path
 from types import TracebackType
 from typing import Annotated
 
-import click
 import typer
 
 import aiolocust
@@ -53,6 +52,7 @@ def version_callback(value: bool) -> None:
 
 @app.command(context_settings={"auto_envvar_prefix": "LOCUST"})
 def main(
+    ctx: typer.Context,
     filename: Annotated[
         str,
         typer.Argument(
@@ -133,25 +133,24 @@ def main(
         # Happens when we were launched as a subprocess with CREATE_NEW_PROCESS_GROUP, like within pytest
         ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
 
-    getattr(logging, log_level.value.upper())
-
-    configure_telemetry()
-
-    # delayed imports so that logging is configured first
-    from aiolocust import HttpUser, User
-    from aiolocust.runner import Runner
-
     file_path = Path(filename).resolve()
     if not file_path.exists():
         if filename == "locustfile.py":
             typer.echo(
-                "Welcome to aiolocust! Create a locustfile.py in your current directory or specify a different one as an argument."
+                "Welcome to aiolocust! Create a locustfile.py in your current directory or specify a different one as an argument.",
+                err=True,
             )
-            ctx = click.get_current_context()
-            typer.echo(ctx.get_help())
+            typer.echo(ctx.get_help(), err=True)
         else:
-            typer.echo(f"Error: Could not find the file at {file_path}")
+            typer.echo(f"Error: Could not find the file at {file_path}", err=True)
         raise typer.Exit(code=1)
+
+    getattr(logging, log_level.value.upper())
+
+    configure_telemetry()
+    # delayed imports so that logging is configured first
+    from aiolocust import HttpUser, User
+    from aiolocust.runner import Runner
 
     module_name = file_path.stem
 

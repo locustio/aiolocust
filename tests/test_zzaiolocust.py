@@ -20,6 +20,22 @@ else:
     creationflags = 0
 
 
+async def test_no_locustfile():
+    with TemporaryDirectory() as tmp_dir:
+        proc = await asyncio.create_subprocess_exec(
+            "aiolocust",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=tmp_dir,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6)
+        err = stderr.decode(errors="replace")
+        assert "Welcome to aiolocust!" in err
+        assert "Create a locustfile.py" in err
+        assert "Error" not in err
+        assert await proc.wait() == 1
+
+
 @unittest.skipIf(os.name == "nt", reason="otel instrumentation seems to have some issues with freethreading on Windows")
 async def test_otel_autoinstrumentation(http_server):  # noqa: ARG001
     with TemporaryDirectory() as tmp_dir:
