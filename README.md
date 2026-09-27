@@ -11,12 +11,13 @@ It has a ton of [advantages over its predecessor](#simple-and-consistent-syntax)
 
 ## Installation
 
-aiolocust requires a freethreading Python build and, if not already used as default, needs to be specified during installation. E.g. the 3.14t build.
-We recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/) for the installation.
+We recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/) for installation. aiolocust requires a freethreading Python build, which is often the default, but it is sometimes necessary to be explicit, using the --python flag:
 
 ```text
 uv tool install --python 3.14t aiolocust
+...
 aiolocust
+Welcome to aiolocust! Create a locustfile.py in your current directory or specify a different one as an argument.
 ```
 
 There are also some [alternative ways to install](#alternative-ways-to-install).
