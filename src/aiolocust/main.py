@@ -95,7 +95,7 @@ def main(
     event_loops: Annotated[
         int | None,
         typer.Option(
-            "--event-loops", help="Set the number of aio event loops", rich_help_panel="Advanced Configuration"
+            "--event-loops", min=1, help="Set the number of aio event loops", rich_help_panel="Advanced Configuration"
         ),
     ] = None,
     html_report: Annotated[
