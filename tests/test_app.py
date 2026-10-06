@@ -270,12 +270,12 @@ from aiolocust import User
 class UserA(User):
     async def run(self):
         print("RUN_USER_A")
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.1)
 
 class UserB(User):
     async def run(self):
         print("RUN_USER_B")
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.1)
 """,
         "--iterations",
         "2",
