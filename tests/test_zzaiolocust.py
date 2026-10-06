@@ -108,6 +108,8 @@ async def run(user):
     logger.info("info level log message")
     async with user.client.get("http://localhost:8081/") as resp:
         pass
+    async with user.client.get("http://localhost:8081/500") as resp:
+        pass
 """)
         proc = await asyncio.create_subprocess_exec(
             "aiolocust",
@@ -135,9 +137,13 @@ async def run(user):
             err = stderr.decode(errors="replace")
             print(err)
             output = stdout.decode(errors="replace")
+            print(output)
             assert "warning level log message" in err
             assert "info level log message" not in err
             assert "exception" not in err.lower()
+            # test some span stuff while we are at it
+            assert '"http.status": "200"' in output
+            assert '"http.status": "500"' in output
             assert await proc.wait() == 0
 
 

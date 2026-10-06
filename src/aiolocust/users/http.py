@@ -107,7 +107,7 @@ class LocustRequestContextManager(_RequestContextManager):
             await super().__aenter__()
         except (ClientConnectorError, ClientResponseError, TimeoutError) as e:
             if request_info := getattr(e, "request_info", None):
-                url = request_info.url
+                url = str(request_info.url)
             else:
                 url = self.str_or_url
             self.span.record_exception(e)
@@ -151,6 +151,7 @@ class LocustRequestContextManager(_RequestContextManager):
             else:
                 # wrap plain strings in Exceptions. Callstack may be confusing, but it is better than nothing
                 self.span.record_exception(Exception(err))
+        self.span.set_attribute("http.status", str(self._resp.status))
         context.detach(self._token)
         self.span.end(self.end_time)
 
