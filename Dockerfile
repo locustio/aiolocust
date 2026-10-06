@@ -5,6 +5,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 
 COPY pyproject.toml .
+COPY LICENSE .
 COPY .python-version .
 COPY src/ src/
 # uv needs this
