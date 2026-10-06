@@ -13,7 +13,7 @@ repos:
       - id: pyright
         name: pyright
         # entry: uv run pyright
-        entry: /bin/sh -c 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec uv run pyright'
+        entry: /bin/sh -c 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec uv run --no-sync pyright'
         language: system
         pass_filenames: false
         types: [python]
