@@ -114,6 +114,8 @@ class LocustRequestContextManager(_RequestContextManager):
             self.span.set_status(StatusCode.ERROR, str(e) if str(e) else e.__class__.__name__)
             self.span.set_attribute("http.url", url)
             self.span.set_attribute("error.type", e.__class__.__name__)
+            if isinstance(e, ClientResponseError):
+                self.span.set_attribute("http.status", e.status)
             self.span.end(time.perf_counter_ns())
             raise
         else:
@@ -151,7 +153,7 @@ class LocustRequestContextManager(_RequestContextManager):
             else:
                 # wrap plain strings in Exceptions. Callstack may be confusing, but it is better than nothing
                 self.span.record_exception(Exception(err))
-        self.span.set_attribute("http.status", str(self._resp.status))
+        self.span.set_attribute("http.status", self._resp.status)
         context.detach(self._token)
         self.span.end(self.end_time)
 
