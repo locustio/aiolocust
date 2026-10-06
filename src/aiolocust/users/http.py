@@ -107,7 +107,7 @@ class LocustRequestContextManager(_RequestContextManager):
             await super().__aenter__()
         except (ClientConnectorError, ClientResponseError, TimeoutError) as e:
             if request_info := getattr(e, "request_info", None):
-                url = request_info.url
+                url = str(request_info.url)
             else:
                 url = self.str_or_url
             self.span.record_exception(e)
