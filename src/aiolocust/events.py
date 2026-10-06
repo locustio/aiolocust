@@ -2,8 +2,6 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, ParamSpec
 
-from aiolocust.datatypes import Request
-
 if TYPE_CHECKING:
     from aiolocust.runner import Runner  # noqa
 
@@ -51,7 +49,7 @@ class SyncEventHook[**P]:
 
 
 startup = EventHook[["Runner"]]()
-request = SyncEventHook[[Request]]()
+request = SyncEventHook[[str, float, str | None]]()
 shutdown_requested = EventHook[["Runner"]]()
 shutdown_completed = EventHook[["Runner"]]()
 
@@ -59,6 +57,6 @@ shutdown_completed = EventHook[["Runner"]]()
 def _clear_handlers() -> None:  # pyright: ignore[reportUnusedFunction]
     global startup, request, shutdown_requested, shutdown_completed
     startup = EventHook[["Runner"]]()
-    request = SyncEventHook[[Request]]()
+    request = SyncEventHook[[str, float, str | None]]()
     shutdown_requested = EventHook[["Runner"]]()
     shutdown_completed = EventHook[["Runner"]]()

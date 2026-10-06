@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 
 import aiohttp
 import pytest
@@ -7,9 +8,17 @@ from aiohttp.client_exceptions import ClientResponseError
 from pytest_httpserver import HTTPServer
 
 from aiolocust import events
-from aiolocust.datatypes import Request
 from aiolocust.otel import configure_telemetry
 from aiolocust.users.http import LocustClientSession
+
+
+@dataclass(slots=True)
+class Request:
+    name: str
+    ttlb: float
+    error: str | None
+
+
 
 requests: list[Request] = []
 
@@ -25,8 +34,8 @@ def reset():
     requests.clear()
 
     @events.request.add_listener
-    def save_request(request: Request):
-        requests.append(request)
+    def save_request(name: str, ttlb: float, error: str | None):
+        requests.append(Request(name, ttlb, error))
 
     yield
 
@@ -210,13 +219,13 @@ async def websocket_handler(request):
 #     async def _(client: LocustClientSession):
 #         async with client.ws_connect(test_client.make_url("/ws")) as ws:
 #             await ws.send_str("foo")
-#             await events.request.fire(Request("send foo", 0, None))
+#             events.request.fire("send foo", 0, None)
 #             async for msg in ws:
 #                 if msg.type == WSMsgType.TEXT:
-#                     await events.request.fire(Request(f"recv {msg.data}", 0, None))
+#                     events.request.fire(f"recv {msg.data}", 0, None)
 #                     await ws.send_str("close")
 #                 elif msg.type == WSMsgType.ERROR:
-#                     await events.request.fire(Request(f"recv {msg.data}", 0, Exception("error-response")))
+#                     events.request.fire(f"recv {msg.data}", 0, "error-response")
 #                     break
 
 #     async with LocustClientSession() as client:

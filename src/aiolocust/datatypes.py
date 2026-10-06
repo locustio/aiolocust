@@ -5,13 +5,6 @@ from typing import Any
 
 
 @dataclass(slots=True)
-class Request:
-    name: str
-    ttlb: float
-    error: str | None
-
-
-@dataclass(slots=True)
 class RequestEntry:
     count: int = 0
     errorcount: int = 0
