@@ -17,7 +17,7 @@ def configure_test_telemetry():
 
 
 def record_request(name: str, ttlb_s: int, exception=None) -> None:
-    start_time = time.perf_counter_ns()
+    start_time = time.time_ns()
     span = tracer.start_span(name, kind=trace.SpanKind.CLIENT, start_time=start_time)
     if exception:
         span.set_status(trace.StatusCode.ERROR, str(exception))

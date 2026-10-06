@@ -94,7 +94,8 @@ class LocustRequestContextManager(_RequestContextManager):
         self.name = name
 
     async def __aenter__(self) -> LocustResponse:
-        self.start_time = time.perf_counter_ns()
+        self.start_time = time.time_ns()
+        self.start_counter = time.perf_counter_ns()
         self.span = tracer.start_span(
             self.name or f"{self.method} {self.str_or_url}",
             kind=trace.SpanKind.CLIENT,
@@ -116,12 +117,14 @@ class LocustRequestContextManager(_RequestContextManager):
             self.span.set_attribute("error.type", e.__class__.__name__)
             if isinstance(e, ClientResponseError):
                 self.span.set_attribute("http.status", e.status)
-            self.span.end(time.perf_counter_ns())
+            duration_ns = time.perf_counter_ns() - self.start_counter
+            self.span.end(self.start_time + duration_ns)
             raise
         else:
             self.span.set_attribute("http.url", str(super()._resp.url))
             self._resp.bytes = await self._resp.read()
-            self.end_time = time.perf_counter_ns()
+            duration_ns = time.perf_counter_ns() - self.start_counter
+            self.end_time = self.start_time + duration_ns
         self._resp.span = self.span
         return self._resp
 

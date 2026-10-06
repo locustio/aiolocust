@@ -147,6 +147,7 @@ async def run(user):
             assert '"http.status": 200' in output
             assert '"http.status": 500' in output
             assert '"http.status": 503' in output
+            assert not '"1970-' in output  # must be a bad timestamp scaling if this ever happens
             assert await proc.wait() == 0
 
 
