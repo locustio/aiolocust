@@ -18,8 +18,9 @@ from aiohttp import ClientOSError
 from opentelemetry import _logs, metrics, trace
 from rich.console import Console
 
-from aiolocust import User, events, stats
+from aiolocust import User, errortracker, events, stats
 from aiolocust.datatypes import SafeCounter, Stage
+from aiolocust.errortracker import record_error
 from aiolocust.otel import configure_telemetry
 
 # uvloop is faster than the default pure-python asyncio event loop
@@ -141,7 +142,6 @@ class Runner:
         signal.signal(signal.SIGTERM, self.signal_handler)
         self.running = False
         self.start_time = 0.0
-        events.request.add_listener(stats.record_request)
         configure_telemetry()
         self.sf: stats.StatsFormatter
         self.console = Console()
@@ -260,7 +260,7 @@ class Runner:
                         e
                     ):
                         return
-                    stats.record_error(str(e))
+                    record_error(str(e))
                     logger.exception(e)
 
     def signal_handler(self, signal: int, _frame) -> None:
@@ -343,9 +343,9 @@ class Runner:
         self.request_stats: list[stats.StatsRowData] = rows[:-1]
         self.total_stats: stats.StatsRowData = rows[-1]
         self.console.print(summary_table)
-        error_table = self.sf.get_error_table() if stats.error_counter else None
+        error_table = self.sf.get_error_table() if errortracker.error_counter else None
 
-        if stats.error_counter:
+        if errortracker.error_counter:
             self.console.print(error_table)
 
         if self.json_report:

@@ -1,3 +1,4 @@
+import os
 import ssl
 import time
 from asyncio import Future
@@ -13,8 +14,7 @@ from opentelemetry import context, trace
 from opentelemetry.context import Context, Token  # type: ignore # Token exists, I promise
 from opentelemetry.trace import Span, StatusCode
 
-from aiolocust import User, events
-from aiolocust.datatypes import Request
+from aiolocust import User
 
 if TYPE_CHECKING:  # avoid circular import
     from aiolocust.runner import Runner
@@ -89,38 +89,37 @@ class LocustRequestContextManager(_RequestContextManager):
         self._resp: LocustResponse  # type: ignore
         self._token: Token[Context]
         self.span: Span
-        self.start_time: float
+        self.start_time: int
+        self.end_time: int | None = None
         self.name = name
 
     async def __aenter__(self) -> LocustResponse:
-        self.span = trace.get_tracer("aiolocust").start_span(f"{self.method} {self.name}" if self.name else self.method)
+        self.start_time = time.perf_counter_ns()
+        self.span = trace.get_tracer("aiolocust").start_span(
+            self.name or f"{self.method} {self.str_or_url}",
+            kind=trace.SpanKind.CLIENT,
+            start_time=self.start_time,
+        )
         self.span.set_attribute("http.method", self.method)
-        self.start_time = time.perf_counter()
         ctx = trace.set_span_in_context(self.span)
         self._token = context.attach(ctx)
         try:
             await super().__aenter__()
-        except ClientConnectorError as e:
-            elapsed = self.ttlb = time.perf_counter() - self.start_time
+        except (ClientConnectorError, ClientResponseError, TimeoutError) as e:
             if request_info := getattr(e, "request_info", None):
                 url = request_info.url
             else:
                 url = self.str_or_url
-            await events.request.fire(Request(str(self.name or url), elapsed, elapsed, e))
-            raise
-        except ClientResponseError as e:
-            elapsed = self.ttlb = time.perf_counter() - self.start_time
-            await events.request.fire(Request(str(self.name or self.str_or_url), elapsed, elapsed, e))
-            raise
-        except TimeoutError as e:
-            elapsed = self.ttlb = time.perf_counter() - self.start_time
-            await events.request.fire(Request(str(self.name or self.str_or_url), elapsed, elapsed, e))
+            self.span.record_exception(e)
+            self.span.set_status(StatusCode.ERROR, str(e) if str(e) else e.__class__.__name__)
+            self.span.set_attribute("http.url", url)
+            self.span.set_attribute("error.type", e.__class__.__name__)
+            self.span.end(time.perf_counter_ns())
             raise
         else:
-            self.url = super()._resp.url
-            self.ttfb = time.perf_counter() - self.start_time
+            self.span.set_attribute("http.url", str(super()._resp.url))
             self._resp.bytes = await self._resp.read()
-            self.ttlb = time.perf_counter() - self.start_time
+            self.end_time = time.perf_counter_ns()
         self._resp.span = self.span
         return self._resp
 
@@ -139,24 +138,21 @@ class LocustRequestContextManager(_RequestContextManager):
             if exc_val:  # overwrite if there was an explicit exception (e.g. an assert or crash)
                 exc_val.exc_tb = exc_tb  # type: ignore # add traceback so we can add line number info to error summary
                 self._resp.error = exc_val  # type: ignore
-        if self._resp.error:
-            self.span.set_status(StatusCode.ERROR)
-            self.span.set_attribute("exception.type", type(self._resp.error).__name__)
-            if isinstance(self._resp.error, Exception):
-                self.span.record_exception(self._resp.error)
+        if err := self._resp.error:
+            if isinstance(err, AssertionError):
+                tb: TracebackType = err.exc_tb  # type: ignore
+                description = f"{str(err) or err.__class__.__name__} ({os.path.basename(tb.tb_frame.f_code.co_filename)}:{tb.tb_lineno})"
+            else:
+                description = str(err) or err.__class__.__name__
+            self.span.set_status(StatusCode.ERROR, description)
+            self.span.set_attribute("error.type", type(err).__name__)
+            if isinstance(err, Exception):
+                self.span.record_exception(err)
             else:
                 # wrap plain strings in Exceptions. Callstack may be confusing, but it is better than nothing
-                self.span.record_exception(Exception(self._resp.error))
+                self.span.record_exception(Exception(err))
         context.detach(self._token)
-        self.span.end()
-        await events.request.fire(
-            Request(
-                self.name or str(self.url).removeprefix(str(self._base_url)),
-                self.ttfb,
-                self.ttlb,
-                self._resp.error,
-            )
-        )
+        self.span.end(self.end_time)
 
 
 class LocustClientSession(ClientSession):

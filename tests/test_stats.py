@@ -2,12 +2,12 @@ import io
 import time
 
 import pytest
+from opentelemetry import trace
 from rich.console import Console
 from utils import assert_search
 
-from aiolocust.datatypes import Request
 from aiolocust.otel import configure_telemetry
-from aiolocust.stats import StatsFormatter, record_request
+from aiolocust.stats import StatsFormatter
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -15,17 +15,27 @@ def configure_test_telemetry():
     configure_telemetry()
 
 
+def record_request(name: str, ttlb_s: int, exception=None) -> None:
+    tracer = trace.get_tracer("aiolocust")
+    start_time = time.perf_counter_ns()
+    span = tracer.start_span(name, kind=trace.SpanKind.CLIENT, start_time=start_time)
+    if exception:
+        span.set_status(trace.StatusCode.ERROR, str(exception))
+        span.set_attribute("error.type", str(exception))
+    span.end(start_time + ttlb_s * 1_000_000_000)
+
+
 async def testcollect_stats_rows():
     start_time = time.time()
     sf = StatsFormatter(start_time)
     requests = sf.collect_stats_rows(start_time + 1)
-    await record_request(Request("foo", 1, 1, None))
-    await record_request(Request("foo", 1, 2, True))
-    await record_request(Request("bar", 1, 1, None))
-    await record_request(Request("bar", 1, 2, True))
+    record_request("foo", 1)
+    record_request("foo", 2, True)
+    record_request("bar", 1)
+    record_request("bar", 2, True)
     requests = sf.collect_stats_rows(start_time + 4)
     for request in requests:
-        print(request)
+        print("request: ", request)
     assert len(requests) == 3
     assert requests[0].name == "foo"
     assert requests[0].count == 2
@@ -38,7 +48,7 @@ async def testcollect_stats_rows():
     assert total.rate == pytest.approx(1)
     assert total.current_rate == pytest.approx(4 / 3)
 
-    await record_request(Request("foo", 1, 1, None))
+    record_request("foo", 1)
     requests = sf.collect_stats_rows(start_time + 5)
     for request in requests:
         print(request)
@@ -58,10 +68,10 @@ async def testcollect_stats_rows_and_get_table():
     f.seek(0)
     assert "Total" in output
 
-    await record_request(Request("foo", 1, 1, None))
-    await record_request(Request("foo", 1, 2, True))
-    await record_request(Request("bar", 1, 1, None))
-    await record_request(Request("bar", 1, 2, True))
+    record_request("foo", 1, None)
+    record_request("foo", 2, True)
+    record_request("bar", 1, None)
+    record_request("bar", 2, True)
     console.print(sf.get_table(sf.collect_stats_rows(start_time + 2)))
     output = f.getvalue()
     f.seek(0)
@@ -87,10 +97,10 @@ async def test_cumulative_printout():
     start_time = time.time()
     sf = StatsFormatter(start_time)
 
-    await record_request(Request("foo", 1, 1, None))
-    await record_request(Request("foo", 2, 2, None))
-    await record_request(Request("bar", 3, 3, None))
-    await record_request(Request("baz", 4, 4, True))
+    record_request("foo", 1, None)
+    record_request("foo", 2, None)
+    record_request("bar", 3, None)
+    record_request("baz", 4, True)
 
     console.print(sf.get_table(sf.collect_stats_rows(start_time + 2)))
     output = f.getvalue()
@@ -102,9 +112,9 @@ async def test_cumulative_printout():
 
     f.seek(0)
     f.truncate(0)
-    await record_request(Request("foo", 1, 1, None))
-    await record_request(Request("bar", 2, 2, None))
-    await record_request(Request("baz", 3, 3, None))
+    record_request("foo", 1, None)
+    record_request("bar", 2, None)
+    record_request("baz", 3, None)
     console.print(sf.get_table(sf.collect_stats_rows(start_time + 4)))
     output = f.getvalue()
     print(output)
@@ -115,9 +125,9 @@ async def test_cumulative_printout():
 
     f.seek(0)
     f.truncate(0)
-    await record_request(Request("foo", 1, 1, None))
-    await record_request(Request("foo", 2, 2, None))
-    await record_request(Request("bar", 3, 3, None))
+    record_request("foo", 1, None)
+    record_request("foo", 2, None)
+    record_request("bar", 3, None)
     console.print(sf.get_table(sf.collect_stats_rows(start_time + 5), True))
     output = f.getvalue()
     print(output)
@@ -130,11 +140,11 @@ async def test_error_pct_summary():
     console = Console(file=f)
     start_time = time.time()
     sf = StatsFormatter(start_time)
-    await record_request(Request("foo", 1, 1, None))
-    await record_request(Request("foo", 2, 2, None))
-    await record_request(Request("bar", 3, 3, None))
-    await record_request(Request("bar", 4, 4, Exception("an exception")))
-    await record_request(Request("baz", 5, 5, True))
+    record_request("foo", 1, None)
+    record_request("foo", 2, None)
+    record_request("bar", 3, None)
+    record_request("bar", 4, Exception("an exception"))
+    record_request("baz", 5, True)
     console.print(sf.get_table(sf.collect_stats_rows(start_time + 1), True))
     console.print(sf.get_error_table())
     output = f.getvalue()
@@ -158,7 +168,7 @@ async def test_error_cardinality():
     console = Console(file=f)
     sf = StatsFormatter(time.time())
     for i in range(300):
-        await record_request(Request("foo", 1, 1, Exception(f"error with unique id {i}")))
+        record_request("foo", 1, Exception(f"error with unique id {i}"))
     console.print(sf.get_error_table())
     output = f.getvalue()
     assert "Error" in output

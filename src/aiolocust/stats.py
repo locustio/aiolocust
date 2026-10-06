@@ -1,15 +1,12 @@
-import os
 from collections import defaultdict
 from dataclasses import dataclass
-from threading import Lock
-from types import TracebackType
 
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics.export import HistogramDataPoint
 from rich.table import Table
 
-from aiolocust import otel
-from aiolocust.datatypes import Request, RequestEntry
+from aiolocust import errortracker, otel
+from aiolocust.datatypes import RequestEntry
 
 MAX_ERROR_KEYS = 200
 
@@ -18,8 +15,6 @@ meter = metrics.get_meter("locust")
 ttlb_histogram = meter.create_histogram(
     "locust.client.duration", unit="s", description="Time to last byte for requests"
 )
-error_counter: dict[str, int] = defaultdict(int)
-error_counter_lock = Lock()
 
 
 @dataclass(slots=True)
@@ -74,36 +69,6 @@ class StatsRowData:
         self.current_rate = current_entry.rate(last_time, current_time)
 
 
-def record_error(message: str) -> None:
-    with error_counter_lock:
-        if message not in error_counter and len(error_counter) >= MAX_ERROR_KEYS:
-            message = "OTHER"
-        error_counter[message] += 1
-
-
-async def record_request(req: Request) -> None:
-    attributes = {
-        "name": req.name,
-        # the rest of these remain to be implemented
-        # http.method=GET,
-        # http.host=localhost,
-        # net.peer.name=localhost,
-        # net.peer.port=8080,
-        # http.status_code=200}
-    }
-    if req.error:
-        # error.type is propagated to otel, but it also picked up when calculating command line stats table
-        attributes["error.type"] = req.error.__class__.__name__
-        if isinstance(req.error, AssertionError):
-            tb: TracebackType = req.error.exc_tb  # type: ignore
-            record_error(
-                f"{str(req.error) or req.error.__class__.__name__} ({os.path.basename(tb.tb_frame.f_code.co_filename)}:{tb.tb_lineno})"
-            )
-        else:
-            record_error(str(req.error) or req.error.__class__.__name__)
-    ttlb_histogram.record(req.ttlb, attributes=attributes)
-
-
 class StatsFormatter:
     def __init__(self, start_time) -> None:
         self.start_time = start_time
@@ -111,7 +76,7 @@ class StatsFormatter:
         self.aggregate: dict[str, RequestEntry] = defaultdict(RequestEntry)
         # clear reader, in case this is not the first Stats object
         _ = otel.reader.get_metrics_data()
-        error_counter.clear()
+        errortracker.clear()
 
     def _get_entries(self) -> dict[str, RequestEntry]:
         metrics_data = otel.reader.get_metrics_data()
@@ -185,7 +150,7 @@ class StatsFormatter:
         error_table.add_column("Count")
         error_table.add_column("Error")
 
-        for key, count in sorted(error_counter.items(), key=lambda item: item[1], reverse=True):
+        for key, count in sorted(errortracker.error_counter.items(), key=lambda item: item[1], reverse=True):
             error_table.add_row(str(count), key)
 
         return error_table
