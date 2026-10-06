@@ -7,6 +7,7 @@ WORKDIR /app
 COPY pyproject.toml .
 COPY .python-version .
 COPY src/ src/
+COPY LICENSE .
 # uv needs this
 RUN touch README.md
 
