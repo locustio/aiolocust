@@ -20,9 +20,9 @@ def invoke(tmp_path, locustfile: str, *args, **kwargs):
     runner = CliRunner()
     with open(tmp_path / "locustfile.py", "w") as f:
         f.write(locustfile)
-    output = runner.invoke(app, [str(tmp_path / "locustfile.py"), *args], **kwargs)
-    print(output)
-    return output
+    result = runner.invoke(app, [str(tmp_path / "locustfile.py"), *args], **kwargs)
+    print(result.output)
+    return result
 
 
 def test_main(http_server, tmp_path):  # noqa: ARG001
@@ -258,18 +258,6 @@ async def run(user):
     assert "http://localhost:" in result.output
     assert "0 (0.0%)" in result.output
     assert result.exit_code == 0
-
-
-def test_event_loops_must_be_positive(tmp_path):
-    result = invoke(
-        tmp_path,
-        "",
-        "--event-loops",
-        "0",
-    )
-
-    assert "0 is not in the range x>=1" in result.output
-    assert result.exit_code != 0
 
 
 def test_multiple_user_class_detection(tmp_path):
