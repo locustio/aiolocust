@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator, Callable
 from collections.abc import Coroutine as AbcCoroutine
 from contextlib import asynccontextmanager
 from functools import wraps
+from importlib.metadata import version
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
@@ -13,7 +14,7 @@ UserT = TypeVar("UserT", bound="User")
 from opentelemetry import trace
 from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
-tracer = trace.get_tracer("aiolocust")
+tracer = trace.get_tracer("aiolocust", version("aiolocust"))
 
 
 class User(ABC):
