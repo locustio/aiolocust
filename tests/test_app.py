@@ -260,6 +260,18 @@ async def run(user):
     assert result.exit_code == 0
 
 
+def test_event_loops_must_be_positive(tmp_path):
+    result = invoke(
+        tmp_path,
+        "",
+        "--event-loops",
+        "0",
+    )
+
+    assert "0 is not in the range x>=1" in result.output
+    assert result.exit_code != 0
+
+
 def test_multiple_user_class_detection(tmp_path):
     result = invoke(
         tmp_path,
