@@ -9,7 +9,7 @@ class Request:
     name: str
     ttfb: float
     ttlb: float
-    error: Exception | bool | str | None
+    error: str | None
 
 
 @dataclass(slots=True)

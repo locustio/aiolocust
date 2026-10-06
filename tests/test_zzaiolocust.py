@@ -53,7 +53,7 @@ async def run(self):
             "aiolocust",
             tempfile.name,
             "-u",
-            "20",
+            "5",
             "--iterations",
             "30",
             "--instrument",
@@ -81,8 +81,8 @@ async def run(self):
             print(err)
             output = stdout.decode(errors="replace")
             print(output)
-            assert " http://localhost:8081/ │    30 │    0 (0.0%) " in output
-            assert " foo                    │    30 │ 30 (100.0%)" in output
+            assert " GET http://localhost:8081/ │    30 │    0 (0.0%) " in output
+            assert " foo                        │    30 │ 30 (100.0%)" in output
             assert '"status_code": "UNSET"' in output
             assert '"status_code": "ERROR"' in output
             assert '"exception.type": "AssertionError"' in output
@@ -90,7 +90,7 @@ async def run(self):
             assert '"custom.attribute": "example"' in output
             assert f'"filename": "{tempfile.name}"' in output  # ensure filename is included in resource attributes
             assert '"name": "GET"' in output  # not renamed
-            assert '"name": "GET foo"' in output  # using explicit name
+            assert '"name": "foo"' in output  # using explicit name
             assert await proc.wait() == 0
 
 

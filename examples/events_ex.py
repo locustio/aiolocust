@@ -12,7 +12,7 @@ class MyUser(HttpUser):
 
 
 @events.request.add_listener
-async def to_stdout(request: Request) -> None:
+def to_stdout(request: Request) -> None:
     print(f"Request: {request.name}, TTLB: {request.ttlb:.3f}s, Error: {request.error}")
 
 
@@ -21,7 +21,7 @@ f = open("requests.csv", "a", buffering=1)
 
 
 @events.request.add_listener
-async def to_csv(request: Request) -> None:
+def to_csv(request: Request) -> None:
     with lock:
         f.write(f"{request.name},{request.ttlb:.3f},{request.error}\n")
 

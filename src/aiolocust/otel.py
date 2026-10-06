@@ -2,7 +2,9 @@ import logging
 import os
 import socket
 import sys
+from collections.abc import Sequence
 from importlib.metadata import version
+from typing import Literal
 
 from opentelemetry import metrics, trace
 from opentelemetry._logs import set_logger_provider
@@ -19,12 +21,53 @@ from opentelemetry.sdk.metrics.export import (
 )
 from opentelemetry.sdk.metrics.view import ExplicitBucketHistogramAggregation, View
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.trace import SpanKind, StatusCode
 from rich.console import Console
 from rich.logging import RichHandler
 
-from aiolocust import config
+from aiolocust import config, events
+from aiolocust.datatypes import Request
+from aiolocust.errortracker import record_error
+from aiolocust.stats import ttlb_histogram
+
+
+class SpanMetricsProcessor(SpanProcessor):
+    def on_end(self, span: ReadableSpan) -> None:
+        if (
+            span.kind != SpanKind.CLIENT
+            or not span.instrumentation_scope
+            or span.instrumentation_scope.name != "aiolocust"
+        ):
+            return
+        assert span.start_time
+        assert span.end_time
+        assert span.attributes is not None
+
+        attributes: dict[
+            str, str | int | float | Sequence[str] | Sequence[bool] | Sequence[int] | Sequence[float] | Literal[True]
+        ] = {"name": span.name}
+        if span.attributes:
+            for attribute in ["http.method", "error.type"]:
+                if attribute in span.attributes:
+                    attributes[attribute] = span.attributes[attribute]
+
+        elapsed = (span.end_time - span.start_time) / 1_000_000_000
+        error: str | None = None
+        for event in span.events:
+            if event.name == "exception":
+                if attr := event.attributes:
+                    error = f"{event.attributes['exception.type']}: {attr['exception.message']}"
+                else:
+                    raise Exception("missing attributes on exception event")
+                # attributes["exception.stacktrace"]
+        ttlb_histogram.record(elapsed, attributes=attributes)
+
+        events.request.fire(Request(span.name, elapsed, elapsed, str(error) if error else None))
+        if span.status.status_code == StatusCode.ERROR:
+            record_error(span.status.description or "Unknown error")
+
 
 HISTOGRAM_BOUNDARIES = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0]
 
@@ -57,6 +100,7 @@ def configure_telemetry() -> None:
     )
     setup_trace_exporters(tracer_provider)
     setup_meter_provider([reader], resource)
+    tracer_provider.add_span_processor(SpanMetricsProcessor())
 
 
 def setup_logging(level: int, logger_provider: LoggerProvider) -> None:

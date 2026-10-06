@@ -1,3 +1,4 @@
+# this needs to be updated to use spans instead of manually firing request event
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -5,8 +6,7 @@ from typing import Any
 from opentelemetry import trace
 from playwright.async_api import Page, async_playwright  # pyright: ignore[reportMissingImports]
 
-from aiolocust import User, events
-from aiolocust.datatypes import Request
+from aiolocust import User
 from aiolocust.runner import Runner
 
 # Setup OTel Tracer (this is probably going to need to change)
@@ -27,10 +27,10 @@ class LocustPage:
             span.set_attribute("browser.url", url)
             try:
                 result = await self._page.goto(url, **kwargs)
-                await events.request.fire(Request(url, 1, 1, None))
+                # await events.request.fire(Request(url, 1, 1, None))
             except Exception as e:
                 span.record_exception(e)
-                await events.request.fire(Request(url, 1, 1, e))
+                # await events.request.fire(Request(url, 1, 1, e))
                 raise
             return result
 
@@ -39,10 +39,10 @@ class LocustPage:
             span.set_attribute("browser.selector", selector)
             try:
                 result = await self._page.click(selector, **kwargs)
-                await events.request.fire(Request(selector, 1, 1, None))
+                # await events.request.fire(Request(selector, 1, 1, None))
             except Exception as e:
                 span.record_exception(e)
-                await events.request.fire(Request(selector, 1, 1, e))
+                # await events.request.fire(Request(selector, 1, 1, e))
                 raise
             return result
 
