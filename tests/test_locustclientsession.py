@@ -19,7 +19,6 @@ class Request:
     error: str | None
 
 
-
 requests: list[Request] = []
 
 
