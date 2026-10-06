@@ -151,6 +151,7 @@ class LocustRequestContextManager(_RequestContextManager):
             else:
                 # wrap plain strings in Exceptions. Callstack may be confusing, but it is better than nothing
                 self.span.record_exception(Exception(err))
+        self.span.set_attribute("http.status", str(self._resp.status))
         context.detach(self._token)
         self.span.end(self.end_time)
 
