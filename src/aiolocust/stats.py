@@ -1,7 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
 
-from opentelemetry import metrics
 from opentelemetry.sdk.metrics.export import HistogramDataPoint
 from rich.table import Table
 
@@ -9,12 +8,6 @@ from aiolocust import errortracker, otel
 from aiolocust.datatypes import RequestEntry
 
 MAX_ERROR_KEYS = 200
-
-
-meter = metrics.get_meter("locust")
-ttlb_histogram = meter.create_histogram(
-    "locust.client.duration", unit="s", description="Time to last byte for requests"
-)
 
 
 @dataclass(slots=True)

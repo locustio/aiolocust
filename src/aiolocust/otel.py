@@ -29,7 +29,11 @@ from rich.logging import RichHandler
 
 from aiolocust import config, events
 from aiolocust.errortracker import record_error
-from aiolocust.stats import ttlb_histogram
+
+meter = metrics.get_meter("locust")
+ttlb_histogram = meter.create_histogram(
+    "locust.client.duration", unit="s", description="Time to last byte for requests"
+)
 
 
 class SpanMetricsProcessor(SpanProcessor):

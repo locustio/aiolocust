@@ -5,7 +5,7 @@ import threading
 import aiohttp
 from utils import assert_search
 
-from aiolocust import User, otel, rate_limit  # type: ignore # noqa # import otel to avoid circular dependency
+from aiolocust import User, rate_limit
 from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count
 from aiolocust.users.http import HttpUser, LocustClientSession
 
