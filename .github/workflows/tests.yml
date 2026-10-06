@@ -24,7 +24,8 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v6
         with:
-          python-version-file: ".python-version"
+          python-version: "3.15.0-rc.3"
+          freethreaded: true
 
       - name: setup uv
         uses: astral-sh/setup-uv@v7
@@ -76,7 +77,8 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v6
         with:
-          python-version-file: ".python-version"
+          python-version: "3.15.0-rc.3"
+          freethreaded: true
 
       - name: setup uv
         uses: astral-sh/setup-uv@v7
@@ -132,7 +134,8 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v6
         with:
-          python-version-file: ".python-version"
+          python-version: "3.15.0-rc.3"
+          freethreaded: true
 
       - name: setup uv
         uses: astral-sh/setup-uv@v7
@@ -153,7 +156,8 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v6
         with:
-          python-version-file: ".python-version"
+          python-version: "3.15.0-rc.3"
+          freethreaded: true
 
       - name: setup uv
         uses: astral-sh/setup-uv@v7
@@ -170,7 +174,8 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v6
         with:
-          python-version-file: ".python-version"
+          python-version: "3.15.0-rc.3"
+          freethreaded: true
 
       - name: setup uv
         uses: astral-sh/setup-uv@v7
