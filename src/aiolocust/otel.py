@@ -64,7 +64,7 @@ class SpanMetricsProcessor(SpanProcessor):
                 # attributes["exception.stacktrace"]
         ttlb_histogram.record(elapsed, attributes=attributes)
 
-        events.request.fire(Request(span.name, elapsed, elapsed, str(error) if error else None))
+        events.request.fire(Request(span.name, elapsed, str(error) if error else None))
         if span.status.status_code == StatusCode.ERROR:
             record_error(span.status.description or "Unknown error")
 

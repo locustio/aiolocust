@@ -210,13 +210,13 @@ async def websocket_handler(request):
 #     async def _(client: LocustClientSession):
 #         async with client.ws_connect(test_client.make_url("/ws")) as ws:
 #             await ws.send_str("foo")
-#             await events.request.fire(Request("send foo", 0, 0, None))
+#             await events.request.fire(Request("send foo", 0, None))
 #             async for msg in ws:
 #                 if msg.type == WSMsgType.TEXT:
-#                     await events.request.fire(Request(f"recv {msg.data}", 0, 0, None))
+#                     await events.request.fire(Request(f"recv {msg.data}", 0, None))
 #                     await ws.send_str("close")
 #                 elif msg.type == WSMsgType.ERROR:
-#                     await events.request.fire(Request(f"recv {msg.data}", 0, 0, Exception("error-response")))
+#                     await events.request.fire(Request(f"recv {msg.data}", 0, Exception("error-response")))
 #                     break
 
 #     async with LocustClientSession() as client:

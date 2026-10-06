@@ -27,10 +27,10 @@ class LocustPage:
             span.set_attribute("browser.url", url)
             try:
                 result = await self._page.goto(url, **kwargs)
-                # await events.request.fire(Request(url, 1, 1, None))
+                # await events.request.fire(Request(url, 1, None))
             except Exception as e:
                 span.record_exception(e)
-                # await events.request.fire(Request(url, 1, 1, e))
+                # await events.request.fire(Request(url, 1, e))
                 raise
             return result
 
@@ -39,10 +39,10 @@ class LocustPage:
             span.set_attribute("browser.selector", selector)
             try:
                 result = await self._page.click(selector, **kwargs)
-                # await events.request.fire(Request(selector, 1, 1, None))
+                # await events.request.fire(Request(selector, 1, None))
             except Exception as e:
                 span.record_exception(e)
-                # await events.request.fire(Request(selector, 1, 1, e))
+                # await events.request.fire(Request(selector, 1, e))
                 raise
             return result
 

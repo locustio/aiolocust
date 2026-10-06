@@ -7,7 +7,6 @@ from typing import Any
 @dataclass(slots=True)
 class Request:
     name: str
-    ttfb: float
     ttlb: float
     error: str | None
 
