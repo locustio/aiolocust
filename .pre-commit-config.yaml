@@ -12,7 +12,7 @@ repos:
     hooks:
       - id: pyright
         name: pyright
-        # entry: uv run pyright
+        # Add an extra PATH, in case you're committing from something like SourceTree, where the PATH is not set up
         entry: /bin/sh -c 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; exec uv run --no-sync pyright'
         language: system
         pass_filenames: false
