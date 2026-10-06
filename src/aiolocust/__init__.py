@@ -10,7 +10,10 @@ P = ParamSpec("P")
 R = TypeVar("R")
 UserT = TypeVar("UserT", bound="User")
 
+from opentelemetry import trace
 from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
+
+tracer = trace.get_tracer("aiolocust")
 
 
 class User(ABC):

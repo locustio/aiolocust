@@ -14,7 +14,7 @@ from opentelemetry import context, trace
 from opentelemetry.context import Context, Token  # type: ignore # Token exists, I promise
 from opentelemetry.trace import Span, StatusCode
 
-from aiolocust import User
+from aiolocust import User, tracer
 
 if TYPE_CHECKING:  # avoid circular import
     from aiolocust.runner import Runner
@@ -95,7 +95,7 @@ class LocustRequestContextManager(_RequestContextManager):
 
     async def __aenter__(self) -> LocustResponse:
         self.start_time = time.perf_counter_ns()
-        self.span = trace.get_tracer("aiolocust").start_span(
+        self.span = tracer.start_span(
             self.name or f"{self.method} {self.str_or_url}",
             kind=trace.SpanKind.CLIENT,
             start_time=self.start_time,

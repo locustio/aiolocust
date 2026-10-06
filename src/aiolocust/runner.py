@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from aiohttp import ClientOSError
-from opentelemetry import _logs, metrics, trace
+from opentelemetry import _logs, metrics
 from rich.console import Console
 
 from aiolocust import User, errortracker, events, stats
@@ -149,7 +149,6 @@ class Runner:
         self.next_user_index = 0
         self.host = host
         self.iteration_counter = SafeCounter(iterations)
-        self.tracer = trace.get_tracer("aiolocust")
         self.exit_code: int | None = None
         self.requests: list[stats.StatsRowData]
         config = config or {}

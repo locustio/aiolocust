@@ -6,6 +6,7 @@ from opentelemetry import trace
 from rich.console import Console
 from utils import assert_search
 
+from aiolocust import tracer
 from aiolocust.otel import configure_telemetry
 from aiolocust.stats import StatsFormatter
 
@@ -16,7 +17,6 @@ def configure_test_telemetry():
 
 
 def record_request(name: str, ttlb_s: int, exception=None) -> None:
-    tracer = trace.get_tracer("aiolocust")
     start_time = time.perf_counter_ns()
     span = tracer.start_span(name, kind=trace.SpanKind.CLIENT, start_time=start_time)
     if exception:
