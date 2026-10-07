@@ -23,7 +23,7 @@ from opentelemetry.sdk.metrics.view import ExplicitBucketHistogramAggregation, V
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
-from opentelemetry.trace import SpanKind, StatusCode
+from opentelemetry.trace import StatusCode
 from rich.console import Console
 from rich.logging import RichHandler
 
@@ -38,11 +38,7 @@ ttlb_histogram = meter.create_histogram(
 
 class SpanMetricsProcessor(SpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
-        if (
-            span.kind != SpanKind.CLIENT
-            or not span.instrumentation_scope
-            or span.instrumentation_scope.name != "aiolocust"
-        ):
+        if not span.instrumentation_scope or span.instrumentation_scope.name != "aiolocust":
             return
         assert span.start_time
         assert span.end_time
@@ -64,7 +60,6 @@ class SpanMetricsProcessor(SpanProcessor):
                     error = f"{event.attributes['exception.type']}: {attr['exception.message']}"
                 else:
                     raise Exception("missing attributes on exception event")
-                # attributes["exception.stacktrace"]
         ttlb_histogram.record(elapsed, attributes=attributes)
 
         events.request.fire(span.name, elapsed, str(error) if error else None)
