@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from aiohttp import ClientOSError
+from aiohttp import ClientOSError, ClientResponseError
 from opentelemetry import _logs, metrics
 from rich.console import Console
 
@@ -42,13 +42,14 @@ current_users_gauge = meter.create_gauge(
 )
 
 # Some exceptions will be raised by user code trigger a restart of the run method without propagating it further.
-# Gotta do some special logic for Playwright, because it is an optional dependency.
+EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError, ClientResponseError)
 try:
+    # Gotta do some special logic for Playwright, because it is an optional dependency.
     import playwright.async_api  # pyright: ignore[reportMissingImports]
 
-    EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError, playwright.async_api.TimeoutError)
+    EXPECTED_ERRORS += playwright.async_api.TimeoutError  # pyright: ignore[reportConstantRedefinition]
 except ImportError:
-    EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError)  # pyright: ignore[reportConstantRedefinition]
+    pass
 
 
 # We're going to inherit from ClientSession, even though it is considered internal,

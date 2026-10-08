@@ -138,10 +138,11 @@ async def run(user):
         else:
             err = stderr.decode(errors="replace")
             print(err)
-            output = stdout.decode(errors="replace")
-            print(output)
             assert "warning level log message" in err
             assert "info level log message" not in err
+            assert "Traceback" not in err  # raise_for_status=True shouldn't crash out completely
+            output = stdout.decode(errors="replace")
+            print(output)
             # assert "exception" not in err.lower()
             # test some span stuff while we are at it
             assert '"http.status": 200' in output
