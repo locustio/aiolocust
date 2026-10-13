@@ -422,5 +422,5 @@ async def test_websocket_example(websocket_server, capteesys):
     output, err = capteesys.readouterr()
     assert err == ""
     assert "Summary" in output
-    assert_search(r" websocket.connect[ ]+│[ ]+[20] .* \(0.0%\)", output)
-    assert_search(r" websocket.40[ ]+│[ ]+[20] .* \(0.0%\)", output)
+    assert_search(r" websocket.connect[ ]+│[ ]+[20].*\(0.0%\)", output)
+    assert_search(r" websocket.40[ ]+│[ ]+[20].*\(0.0%\)", output)
