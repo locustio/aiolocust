@@ -142,6 +142,8 @@ class Runner:
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         self.running = False
+        self._shutdown_lock = threading.Lock()
+        self._shutdown_waiters: set[asyncio.Future[None]] = set()
         self.start_time = 0.0
         configure_telemetry()
         self.sf: stats.StatsFormatter
@@ -214,10 +216,32 @@ class Runner:
         await events.shutdown_requested.fire(self)
         self.forced_shutdown_timer.start()
 
-        self.running = False
+        with self._shutdown_lock:
+            self.running = False
+            waiters = tuple(self._shutdown_waiters)
 
         for user in list(self.running_users):
             user.running = False
+
+        def notify(waiter: asyncio.Future[None]) -> None:
+            if not waiter.done():
+                waiter.set_result(None)
+
+        for waiter in waiters:
+            waiter.get_loop().call_soon_threadsafe(notify, waiter)
+
+    async def wait_for_shutdown(self) -> None:
+        waiter = asyncio.get_running_loop().create_future()
+        with self._shutdown_lock:
+            if not self.running:
+                return
+            self._shutdown_waiters.add(waiter)
+
+        try:
+            await waiter
+        finally:
+            with self._shutdown_lock:
+                self._shutdown_waiters.discard(waiter)
 
     def finalize_shutdown(self) -> None:
         for fut in self.futures:
