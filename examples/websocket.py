@@ -29,7 +29,7 @@ async def traced_connect(url: str, additional_headers=None, ssl=None) -> ClientC
         return await connect(url, additional_headers=additional_headers, ssl=ssl)
 
 
-class MyUser(User):
+class WebsocketUser(User):
     async def run(self):
         assert self.runner.host  # use --host parameter please
         websocket = await traced_connect(
