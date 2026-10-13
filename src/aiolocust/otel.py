@@ -2,6 +2,7 @@ import logging
 import os
 import socket
 import sys
+import weakref
 from collections.abc import Sequence
 from importlib.metadata import version
 from typing import Literal
@@ -73,6 +74,14 @@ reader: InMemoryMetricReader = None  # type: ignore
 logger = logging.getLogger(__name__)
 
 
+class _weakrefAttributeFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        for key, value in vars(record).items():
+            if isinstance(value, weakref.ProxyTypes):
+                setattr(record, key, "weakref.ProxyType (converted)")
+        return True
+
+
 def configure_telemetry() -> None:
     global reader
     if reader:
@@ -103,6 +112,7 @@ def configure_telemetry() -> None:
 
 def setup_logging(level: int, logger_provider: LoggerProvider) -> None:
     otel_handler = LoggingHandler(level=level, logger_provider=logger_provider)
+    otel_handler.addFilter(_weakrefAttributeFilter())
     # avoid double-handling logs emitted by the OTEL handler itself
     # otel_handler.addFilter(lambda record: record.name != "opentelemetry.sdk._logs.export.LoggingHandler")
     logs_exporters = {e.strip().lower() for e in os.getenv("OTEL_LOGS_EXPORTER", "otlp").split(",") if e.strip()}

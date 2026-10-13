@@ -1,13 +1,17 @@
 # the filename of these tests is because pytest runs in alphabetical order and we want lower level tests to run first
 import asyncio
 import json
+import logging
 import os
 import re
 import signal
 import unittest
 from tempfile import TemporaryDirectory
+from weakref import proxy
 
 from utils import assert_search
+
+from aiolocust.otel import _weakrefAttributeFilter
 
 if os.name == "nt":
     from subprocess import CREATE_NEW_PROCESS_GROUP
@@ -18,6 +22,23 @@ if os.name == "nt":
 else:
     WINDOWS_DELAY = 0
     creationflags = 0
+
+
+def test_otel_log_filter_for_weakref():
+    # When logging something in the context of a websocket, otel will sometimes log warnings.
+    class Connection:
+        pass
+
+    connection = Connection()
+    record = logging.LogRecord("websockets.client", logging.DEBUG, __file__, 1, "message", (), None)
+    setattr(record, "websocket", proxy(connection))
+    setattr(record, "ordinary_attribute", "kept")
+
+    assert _weakrefAttributeFilter().filter(record)
+    assert getattr(record, "websocket") == "weakref.ProxyType (converted)"
+    assert getattr(record, "ordinary_attribute") == "kept"
+
+
 
 
 async def test_no_locustfile():
