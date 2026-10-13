@@ -14,6 +14,75 @@ from websockets import ClientConnection, connect
 from aiolocust import User, rate_limit, tracer
 from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count
 from aiolocust.users.http import HttpUser, LocustClientSession
+from aiolocust.users.websocket import WebsocketUser
+
+
+@pytest.mark.parametrize("with_handshake", [False, True])
+async def test_websocket_on_connect_before_loops(mocker, with_handshake):
+    steps = []
+    loops_started = asyncio.Event()
+    websocket = mocker.AsyncMock(spec=ClientConnection)
+    connect_mock = mocker.patch("aiolocust.users.websocket.traced_connect", return_value=websocket)
+    runner = mocker.Mock(spec=Runner, host="ws://example.test")
+    runner.wait_for_shutdown = mocker.AsyncMock(side_effect=loops_started.wait)
+
+    class TestUser(WebsocketUser):
+        async def receive(self) -> None:
+            steps.append("receive")
+            if "send" in steps:
+                loops_started.set()
+            await asyncio.Event().wait()
+
+        async def send(self) -> None:
+            steps.append("send")
+            if "receive" in steps:
+                loops_started.set()
+            await asyncio.Event().wait()
+
+    class HandshakeUser(TestUser):
+        async def on_connect(self) -> None:
+            assert self.websocket is websocket
+            await self.websocket.send("handshake")
+            await self.websocket.recv()
+            assert steps == []
+            steps.append("handshake")
+
+    user = HandshakeUser(runner) if with_handshake else TestUser(runner)
+    await asyncio.wait_for(user.run(), timeout=1)
+
+    connect_mock.assert_awaited_once_with(runner.host, ssl=None)
+    assert set(steps[-2:]) == {"send", "receive"}
+    if with_handshake:
+        assert steps[0] == "handshake"
+        websocket.send.assert_awaited_once_with("handshake")
+        websocket.recv.assert_awaited_once_with()
+    websocket.close.assert_awaited_once_with()
+
+
+@pytest.mark.parametrize("error_type", [ValueError, asyncio.CancelledError])
+async def test_websocket_on_connect_failure_closes_connection(mocker, error_type):
+    websocket = mocker.AsyncMock(spec=ClientConnection)
+    mocker.patch("aiolocust.users.websocket.traced_connect", return_value=websocket)
+    runner = mocker.Mock(spec=Runner, host="ws://example.test")
+    receive_mock = mocker.AsyncMock()
+    send_mock = mocker.AsyncMock()
+
+    class TestUser(WebsocketUser):
+        async def on_connect(self) -> None:
+            raise error_type("handshake failed")
+
+        async def receive(self) -> None:
+            await receive_mock()
+
+        async def send(self) -> None:
+            await send_mock()
+
+    with pytest.raises(error_type, match="handshake failed"):
+        await TestUser(runner).run()
+
+    receive_mock.assert_not_awaited()
+    send_mock.assert_not_awaited()
+    websocket.close.assert_awaited_once_with()
 
 
 def test_basic(http_server, capteesys):  # noqa: ARG001

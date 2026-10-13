@@ -1,26 +1,16 @@
 # Example connecting to a Engine.IO style websocket
 import asyncio
-import ssl
 import time
 from typing import cast
 
-import truststore
 from opentelemetry import trace
 
 from aiolocust import tracer
-from aiolocust.users.websocket import WebsocketUser, traced_connect
+from aiolocust.users.websocket import WebsocketUser
 
 
 class MyUser(WebsocketUser):
-    async def connect(self):
-        # typically we'd rely on the base class implementation, but here we want to do some initial communication
-        # before starting the send loop
-
-        assert self.runner.host  # use --host parameter please
-        self.websocket = await traced_connect(
-            self.runner.host,  # If you want to trust system certs for wss, install truststore
-            ssl=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if self.runner.host.startswith("wss://") else None,
-        )
+    async def on_connect(self):
         message = cast(str, await self.websocket.recv())
         assert message.startswith('0{"sid"')
         with tracer.start_as_current_span("websocket.40", kind=trace.SpanKind.CLIENT) as span:

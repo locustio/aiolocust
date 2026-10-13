@@ -25,26 +25,31 @@ async def traced_connect(url: str, additional_headers=None, ssl=None) -> ClientC
 
 class WebsocketUser(User):
     """
-    Websocket test cases are different: instead of providing the normal run() interface, we need three methods:
+    Websocket test cases are different: instead of providing the normal run() interface, we use these methods:
 
-    connect() to establish the connection, creating self.websocket (but the default implementation is often fine)
+    connect() to establish the connection, creating self.websocket
+
+    on_connect() to do any initial communication before the send and receive loops start
 
     receive() to read messages received by the client
 
     send() to send messages, or do anything else you like to do concurrently with the receive loop.
     It stops automatically (without logging a ConnectionClosed) if the connection is closed by the server.
 
-    The run() method still exists, but has a default implementation.
+    The run() method still exists, but has a default implementation, tying these things together
     """
 
     websocket: ClientConnection
 
-    async def connect(self):
+    async def connect(self) -> None:
         assert self.runner.host
         self.websocket = await traced_connect(
             self.runner.host,
             ssl=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if self.runner.host.startswith("wss://") else None,
         )
+
+    async def on_connect(self) -> None:
+        """Override to perform initial communication using self.websocket."""
 
     @abstractmethod
     async def receive(self) -> None: ...
@@ -61,6 +66,7 @@ class WebsocketUser(User):
     async def run(self) -> None:
         await self.connect()
         try:
+            await self.on_connect()
             async with asyncio.TaskGroup() as group:
                 tasks = [
                     group.create_task(self.receive()),
