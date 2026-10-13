@@ -13,6 +13,9 @@ from aiolocust.users.websocket import WebsocketUser, traced_connect
 
 class MyUser(WebsocketUser):
     async def connect(self):
+        # typically we'd rely on the base class implementation, but here we want to do some initial communication
+        # before starting the send loop
+
         assert self.runner.host  # use --host parameter please
         self.websocket = await traced_connect(
             self.runner.host,  # If you want to trust system certs for wss, install truststore
