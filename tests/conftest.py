@@ -1,7 +1,10 @@
 import threading
+from contextlib import AsyncExitStack
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
+import pytest_asyncio
+from websockets.asyncio.server import serve
 
 
 class _SimpleHandler(BaseHTTPRequestHandler):
@@ -30,3 +33,15 @@ def http_server():
     finally:
         server.shutdown()
         thread.join(timeout=1)
+
+
+@pytest_asyncio.fixture
+async def websocket_server():
+    async with AsyncExitStack() as stack:
+
+        async def start(handler):
+            server = await stack.enter_async_context(serve(handler, "127.0.0.1", 0))
+            port = server.sockets[0].getsockname()[1]
+            return f"ws://127.0.0.1:{port}"
+
+        yield start

@@ -1,13 +1,17 @@
 # the filename of these tests is because pytest runs in alphabetical order and we want lower level tests to run first
 import asyncio
 import json
+import logging
 import os
 import re
 import signal
 import unittest
 from tempfile import TemporaryDirectory
+from weakref import proxy
 
 from utils import assert_search
+
+from aiolocust.otel import _weakrefAttributeFilter
 
 if os.name == "nt":
     from subprocess import CREATE_NEW_PROCESS_GROUP
@@ -18,6 +22,77 @@ if os.name == "nt":
 else:
     WINDOWS_DELAY = 0
     creationflags = 0
+
+
+def test_otel_log_filter_for_weakref():
+    # When logging something in the context of a websocket, otel will sometimes log warnings.
+    class Connection:
+        pass
+
+    connection = Connection()
+    record = logging.LogRecord("websockets.client", logging.DEBUG, __file__, 1, "message", (), None)
+    setattr(record, "websocket", proxy(connection))
+    setattr(record, "ordinary_attribute", "kept")
+
+    assert _weakrefAttributeFilter().filter(record)
+    assert getattr(record, "websocket") == "weakref.ProxyType (converted)"
+    assert getattr(record, "ordinary_attribute") == "kept"
+
+
+async def test_websocket_example(websocket_server):
+    received = asyncio.Queue()
+
+    async def handler(ws):
+        # engineIO type handshake
+        await ws.send('0{"sid": "abcd123"}')
+        async for message in ws:
+            await received.put(message)
+            if message == "40":
+                await ws.send("40")
+
+    url = await websocket_server(handler)
+    proc = await asyncio.create_subprocess_exec(
+        "aiolocust",
+        "examples/websocket.py",
+        "-d",
+        "1",
+        "-H",
+        url,
+        env={
+            # "OTEL_TRACES_EXPORTER": "console",
+            "OTEL_METRICS_EXPORTER": "none",
+            "OTEL_LOGS_EXPORTER": "none",
+            **os.environ,
+        },
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
+    except TimeoutError:
+        proc.kill()
+        stdout, stderr = await proc.communicate()
+        err = stderr.decode(errors="replace")
+        print(err)
+        output = stdout.decode(errors="replace")
+        print(output)
+        raise AssertionError("process never terminated") from None
+    else:
+        err = stderr.decode(errors="replace")
+        print(err)
+        assert "Shutting down" in err
+        output = stdout.decode(errors="replace")
+        print(output)
+        assert " websocket.connect " in output
+        assert "Summary" in output
+        assert_search(r" websocket\.connect +[│|] +1 +[│|] +0 \(0\.0%\) ", output)
+        assert await proc.wait() == 0
+        try:
+            assert received.get_nowait() == "40"
+        except asyncio.QueueEmpty:
+            raise Exception("WS server received no messages!")
+        # assert '"network.protocol.name": "websocket"' in output  # tracing stuff!
+        assert not "unhandled error" in output
 
 
 async def test_no_locustfile():

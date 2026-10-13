@@ -1,11 +1,17 @@
 import asyncio
 import re
 import threading
+import time
+from typing import cast
 
 import aiohttp
+import pytest
+from opentelemetry import trace
+from opentelemetry.propagate import inject
 from utils import assert_search
+from websockets import ClientConnection, connect
 
-from aiolocust import User, rate_limit
+from aiolocust import User, rate_limit, tracer
 from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count
 from aiolocust.users.http import HttpUser, LocustClientSession
 
@@ -116,6 +122,33 @@ def test_manual_shutdown(http_server, capteesys):  # noqa: ARG001
     # I wish we could test this, but it isnt actually printed by the runner,
     # and it isn't worth testing at test_aiolocust-level
     # assert "foo" in out
+
+
+@pytest.mark.parametrize("outcome", ["shutdown", "cancel", "stopped"])
+async def test_wait_for_shutdown(outcome):
+    # ai generated test case
+    runner = Runner([])
+    runner.running = outcome != "stopped"
+    task = asyncio.create_task(runner.wait_for_shutdown())
+    try:
+        await asyncio.sleep(0)
+        if outcome == "stopped":
+            assert await asyncio.wait_for(task, 1) is None
+        else:
+            assert not task.done()
+            assert len(runner._shutdown_waiters) == 1
+            if outcome == "shutdown":
+                await runner.shutdown()
+                assert await asyncio.wait_for(task, 1) is None
+            else:
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+        assert not runner._shutdown_waiters
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        runner.forced_shutdown_timer.cancel()
 
 
 def test_iterations(http_server, capteesys):  # noqa: ARG001
@@ -308,3 +341,86 @@ def test_multiple_user_classes():
     runner.run_test()
 
     assert created == ["A", "B", "A"]
+
+
+async def test_websocket_example(websocket_server, capteesys):
+    received = asyncio.Queue()
+
+    async def handler(ws):
+        # engineIO type handshake
+        await ws.send('0{"sid": "abcd123"}')
+        async for message in ws:
+            await received.put(message)
+            if message == "40":
+                await ws.send('40{"sid":"something"}')
+                await asyncio.sleep(0.01)
+                await ws.send("2")
+
+    url = await websocket_server(handler)
+
+    async def traced_connect(url: str, additional_headers=None, ssl=None) -> ClientConnection:
+        with tracer.start_as_current_span(
+            "websocket.connect",
+            kind=trace.SpanKind.CLIENT,
+        ) as span:
+            span.set_attribute("url.full", url)
+            span.set_attribute("network.protocol.name", "websocket")
+            additional_headers = dict(additional_headers) if additional_headers else {}
+            inject(additional_headers)
+            return await connect(url, additional_headers=additional_headers, ssl=ssl)
+
+    class MyUser(User):
+        async def run(self):
+            assert self.runner.host  # use --host parameter please
+            websocket = await traced_connect(url)
+            message = cast(str, await websocket.recv())
+            assert message.startswith('0{"sid"')
+            with tracer.start_as_current_span("websocket.40", kind=trace.SpanKind.CLIENT) as span:
+                span.set_attribute("network.protocol.name", "websocket")
+                await websocket.send("40")
+                msg = await asyncio.wait_for(websocket.recv(), timeout=1)
+                message = cast(str, msg)
+                assert message.startswith("40")
+
+            async def receive():
+                async for message in websocket:
+                    s = str(message)
+                    if s == "2":
+                        await websocket.send("3")  # heartbeat response
+                    elif s.startswith("42["):
+                        pass
+
+            async def send():
+                while True:
+                    await websocket.send(f'42["ping",{{"ts":{time.time_ns()}}}]')
+                    await asyncio.sleep(0.1)
+
+            try:
+                async with asyncio.TaskGroup() as group:
+                    tasks = [
+                        group.create_task(receive()),
+                        group.create_task(send()),
+                        group.create_task(self.runner.wait_for_shutdown()),
+                    ]
+                    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                    for task in pending:
+                        task.cancel()
+            finally:
+                await websocket.close()
+
+    runner = Runner([MyUser], user_count=20, duration=1, host=url)
+    await runner.run_test_async()
+    assert received.qsize() >= 10
+
+    while True:
+        try:
+            message = received.get_nowait()
+            assert message == "40" or message == "3" or message.startswith('42["ping",')
+        except asyncio.QueueEmpty:
+            break
+
+    output, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in output
+    assert_search(r" websocket.connect[ ]+│[ ]+[20].*\(0.0%\)", output)
+    assert_search(r" websocket.40[ ]+│[ ]+[20].*\(0.0%\)", output)
