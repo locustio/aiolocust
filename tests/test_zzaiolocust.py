@@ -85,7 +85,7 @@ async def test_websocket_example(websocket_server):
         print(output)
         assert " websocket.connect " in output
         assert "Summary" in output
-        assert_search(r" websocket\.connect +│ +1 +│ +0 \(0\.0%\) ", output)
+        assert_search(r" websocket\.connect +[│|] +1 +[│|] +0 \(0\.0%\) ", output)
         assert await proc.wait() == 0
         try:
             assert received.get_nowait() == "40"
