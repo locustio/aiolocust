@@ -51,7 +51,7 @@ class SpanMetricsProcessor(SpanProcessor):
         if span.attributes:
             for attribute in ["http.method", "error.type"]:
                 if attribute in span.attributes:
-                    attributes[attribute] = span.attributes[attribute]
+                    attributes[attribute] = span.attributes[attribute]  # pyright: ignore[reportArgumentType]
 
         elapsed = (span.end_time - span.start_time) / 1_000_000_000
         error: str | None = None
