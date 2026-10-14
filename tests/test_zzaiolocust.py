@@ -100,7 +100,7 @@ async def test_websocket_example_bad_host():
         "aiolocust",
         "examples/websocket.py",
         "-d",
-        "1",
+        str(1 + WINDOWS_DELAY * 5),
         "-i",
         "1",
         "-H",
