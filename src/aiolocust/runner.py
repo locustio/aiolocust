@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import signal
+import socket
 import sys
 import threading
 import time
@@ -42,7 +43,7 @@ current_users_gauge = meter.create_gauge(
 )
 
 # Some exceptions will be raised by user code trigger a restart of the run method without propagating it further.
-EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError, ClientResponseError)
+EXPECTED_ERRORS = (ClientOSError, AssertionError, TimeoutError, ClientResponseError, socket.gaierror)
 try:
     # Gotta do some special logic for Playwright, because it is an optional dependency.
     import playwright.async_api  # pyright: ignore[reportMissingImports]

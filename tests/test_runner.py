@@ -469,31 +469,13 @@ async def test_websocket_user(websocket_server, capteesys):
     assert_search(r" websocket.40[ ]+│[ ]+[20].*\(0.0%\)", output)
 
 
-async def test_websocket_user_bad_host(capteesys):
+async def test_websocket_port_closed(capteesys):
     class MyUser(WebsocketUser):
-        async def on_connect(self):
-            message = cast(str, await self.websocket.recv())
-            assert message.startswith('0{"sid"')
-            with tracer.start_as_current_span("websocket.40", kind=trace.SpanKind.CLIENT) as span:
-                span.set_attribute("network.protocol.name", "websocket")
-                await self.websocket.send("40")
-                message = cast(str, await self.websocket.recv())
-                assert message.startswith("40")
-
         async def receive(self):
-            async for message in self.websocket:
-                s = str(message)
-                if s == "2":
-                    await self.websocket.send("3")  # heartbeat response
-                elif s.startswith("42["):
-                    pass
-                else:
-                    print(f"Unknown message received: {s}")
+            pass
 
         async def send(self):
-            while True:
-                await self.websocket.send(f'42["ping",{{"ts":{time.time_ns()}}}]')
-                await asyncio.sleep(0.1)
+            pass
 
     runner = Runner([MyUser], iterations=1, host="ws://localhost:6666")
     await runner.run_test_async()
@@ -502,3 +484,21 @@ async def test_websocket_user_bad_host(capteesys):
     assert err == ""
     assert "Summary" in output
     assert_search(r" websocket.connect[ ]+│[ ]+[1].*\(100.0%\)", output)
+
+
+async def test_websocket_dns_fail(capteesys):
+    class MyUser(WebsocketUser):
+        async def receive(self):
+            pass
+
+        async def send(self):
+            pass
+
+    runner = Runner([MyUser], iterations=1, host="ws://no_this_doesnt_exist_no_way.net")
+    await runner.run_test_async()
+
+    output, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in output
+    assert_search(r" websocket.connect[ ]+│[ ]+[1].*\(100.0%\)", output)
+    assert "Traceback" not in output  # no explicit callstack should be printed
