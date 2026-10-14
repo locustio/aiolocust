@@ -11,6 +11,8 @@ from aiolocust.users.websocket import WebsocketUser
 
 
 class MyUser(WebsocketUser, HttpUser):
+    host = "ws://localhost:1234"
+
     # by default, connect() just connects the websocket, but if you want, you can override it too
     async def connect(self) -> None:
         async with self.client.post("http://localhost:8081/") as resp:
@@ -18,7 +20,7 @@ class MyUser(WebsocketUser, HttpUser):
             access_token = js["access_token"]
             token_type = js["token_type"]
         self.additional_headers = {"Authorization": f"{token_type} {access_token}"}
-        # now actually do the connect
+        # now actually do the connect, using host specified with attribute or --host, and self.additional_headers
         await super().connect()
 
         message = cast(str, await self.websocket.recv())
