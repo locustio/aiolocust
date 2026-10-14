@@ -95,6 +95,49 @@ async def test_websocket_example(websocket_server):
         assert not "unhandled error" in output
 
 
+async def test_websocket_example_bad_host():
+    proc = await asyncio.create_subprocess_exec(
+        "aiolocust",
+        "examples/websocket.py",
+        "-d",
+        "1",
+        "-i",
+        "1",
+        "-H",
+        "ws://localhost:6666",
+        env={
+            # "OTEL_TRACES_EXPORTER": "console",
+            "OTEL_METRICS_EXPORTER": "none",
+            "OTEL_LOGS_EXPORTER": "none",
+            **os.environ,
+        },
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
+    except TimeoutError:
+        proc.kill()
+        stdout, stderr = await proc.communicate()
+        err = stderr.decode(errors="replace")
+        print(err)
+        output = stdout.decode(errors="replace")
+        print(output)
+        raise AssertionError("process never terminated") from None
+    else:
+        err = stderr.decode(errors="replace")
+        print(err)
+        assert "Shutting down" in err
+        output = stdout.decode(errors="replace")
+        print(output)
+        assert " websocket.connect " in output
+        assert "Summary" in output
+        assert_search(r" websocket\.connect .* \(100\.0%\) ", output)
+        assert await proc.wait() == 0
+        # assert '"network.protocol.name": "websocket"' in output  # tracing stuff!
+        assert not "unhandled error" in output
+
+
 async def test_no_locustfile():
     with TemporaryDirectory() as tmp_dir:
         proc = await asyncio.create_subprocess_exec(

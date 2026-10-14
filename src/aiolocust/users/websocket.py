@@ -20,7 +20,11 @@ async def traced_connect(url: str, additional_headers=None, ssl=None) -> ClientC
         span.set_attribute("network.protocol.name", "websocket")
         additional_headers = dict(additional_headers) if additional_headers else {}
         inject(additional_headers)
-        return await connect(url, additional_headers=additional_headers, ssl=ssl)
+        try:
+            return await connect(url, additional_headers=additional_headers, ssl=ssl)
+        except Exception:
+            span.set_status(trace.StatusCode.ERROR, "woop")
+            raise
 
 
 class WebsocketUser(User):
@@ -42,10 +46,10 @@ class WebsocketUser(User):
     websocket: ClientConnection
 
     async def connect(self) -> None:
-        assert self.runner.host
+        assert self.base_url
         self.websocket = await traced_connect(
-            self.runner.host,
-            ssl=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if self.runner.host.startswith("wss://") else None,
+            self.base_url,
+            ssl=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if self.base_url.startswith("wss://") else None,
         )
 
     async def on_connect(self) -> None:
@@ -71,8 +75,9 @@ class WebsocketUser(User):
                 tasks = [
                     group.create_task(self.receive()),
                     group.create_task(self.send()),
-                    group.create_task(self.runner.wait_for_shutdown()),
                 ]
+                if self.runner:
+                    tasks.append(group.create_task(self.runner.wait_for_shutdown()))
                 _, pending = await asyncio.wait(
                     tasks,
                     return_when=asyncio.FIRST_COMPLETED,
