@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from collections.abc import Coroutine as AbcCoroutine
@@ -5,16 +7,16 @@ from contextlib import asynccontextmanager
 from functools import wraps
 from importlib.metadata import version
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
-
-P = ParamSpec("P")
-R = TypeVar("R")
-UserT = TypeVar("UserT", bound="User")
+from typing import Any, Concatenate, ParamSpec, TypeVar
 
 from opentelemetry import trace
 from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 tracer = trace.get_tracer("aiolocust", version("aiolocust"))
+
+P = ParamSpec("P")
+R = TypeVar("R")
+UserT = TypeVar("UserT", bound="User")
 
 
 class User(ABC):
@@ -34,33 +36,10 @@ class User(ABC):
         yield
 
 
-if TYPE_CHECKING:
-    from aiolocust.runner import Runner
-    from aiolocust.users.http import HttpUser, LocustClientSession
-
-
-def __getattr__(name):
-    # prevent early load of these classes, because they in turn might trigger otel setup
-    if name == "HttpUser":
-        from aiolocust.users.http import HttpUser
-
-        return HttpUser
-    elif name == "LocustClientSession":
-        from aiolocust.users.http import LocustClientSession
-
-        return LocustClientSession
-    elif name == "Runner":
-        from aiolocust.runner import Runner
-
-        return Runner
-
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
+from aiolocust.runner import Runner
+from aiolocust.users.http import HttpUser, LocustClientSession  # type: ignore # noqa: F401
 
 lock = Lock()
-
-import asyncio
-import threading
 
 
 class LimiterPortal:
@@ -129,6 +108,3 @@ def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int
         return wrapper
 
     return decorate
-
-
-__all__ = ["User", "HttpUser", "LocustClientSession", "Runner", "rate_limit"]

@@ -12,8 +12,7 @@ from typing import Annotated
 
 import typer
 
-import aiolocust
-from aiolocust.config import LogLevel
+import aiolocust.config
 from aiolocust.otel import configure_telemetry
 
 app = typer.Typer(add_completion=False)
@@ -74,7 +73,7 @@ def main(
         ),
     ] = False,
     log_level: Annotated[
-        LogLevel,
+        aiolocust.config.LogLevel,
         typer.Option(
             "-l",
             "--log-level",
@@ -83,7 +82,7 @@ def main(
             metavar="TEXT",
             show_default=False,
         ),
-    ] = LogLevel.info,
+    ] = aiolocust.config.LogLevel.info,
     config: Annotated[
         dict | None,
         typer.Option(
