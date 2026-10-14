@@ -86,7 +86,7 @@ class StatsFormatter:
                             raise Exception(f"Unexpected Strange datapoint type: {point}")
                         entries[str(point.attributes["name"])] += RequestEntry(
                             point.count,
-                            point.count if point.attributes.get("error.type") else 0,
+                            point.count if point.attributes.get("otel.status_code") == "ERROR" else 0,
                             point.sum,
                             point.max,
                         )
