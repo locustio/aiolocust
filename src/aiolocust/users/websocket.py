@@ -10,23 +10,6 @@ from websockets import ClientConnection, ConnectionClosed, connect
 from aiolocust import User, tracer
 
 
-# There's no auto instrumentation for websockets so we build it ourselves
-async def traced_connect(url: str, additional_headers=None, ssl=None) -> ClientConnection:
-    with tracer.start_as_current_span(
-        "websocket.connect",
-        kind=trace.SpanKind.CLIENT,
-    ) as span:
-        span.set_attribute("url.full", url)
-        span.set_attribute("network.protocol.name", "websocket")
-        additional_headers = dict(additional_headers) if additional_headers else {}
-        inject(additional_headers)
-        try:
-            return await connect(url, additional_headers=additional_headers, ssl=ssl)
-        except Exception:
-            span.set_status(trace.StatusCode.ERROR, "woop")
-            raise
-
-
 class WebsocketUser(User):
     """
     Websocket test cases are different: instead of providing the normal run() interface, we use these methods:
@@ -43,17 +26,29 @@ class WebsocketUser(User):
     The run() method still exists, but has a default implementation, tying these things together
     """
 
-    websocket: ClientConnection
+    websocket: ClientConnection = None  # type: ignore # just ensure the attribute exists
+    base_url: str  # Mandatory for WebsocketUser
+    additional_headers = {}
 
     async def connect(self) -> None:
-        assert self.base_url
-        self.websocket = await traced_connect(
-            self.base_url,
-            ssl=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if self.base_url.startswith("wss://") else None,
-        )
-
-    async def on_connect(self) -> None:
-        """Override to perform initial communication using self.websocket."""
+        """Actually create the connection. Usually there's no need to override this"""
+        with tracer.start_as_current_span(
+            "websocket.connect",
+            kind=trace.SpanKind.CLIENT,
+        ) as span:
+            span.set_attribute("url.full", self.base_url)
+            span.set_attribute("network.protocol.name", "websocket")
+            additional_headers = self.additional_headers or {}
+            inject(additional_headers)
+            try:
+                self.websocket = await connect(
+                    self.base_url,
+                    additional_headers=additional_headers,
+                    ssl=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if self.base_url.startswith("wss://") else None,
+                )
+            except Exception:
+                span.set_status(trace.StatusCode.ERROR, "woop")
+                raise
 
     @abstractmethod
     async def receive(self) -> None: ...
@@ -68,9 +63,8 @@ class WebsocketUser(User):
             return
 
     async def run(self) -> None:
-        await self.connect()
         try:
-            await self.on_connect()
+            await self.connect()
             async with asyncio.TaskGroup() as group:
                 tasks = [
                     group.create_task(self.receive()),
@@ -85,4 +79,5 @@ class WebsocketUser(User):
                 for task in pending:
                     task.cancel()
         finally:
-            await self.websocket.close()
+            if self.websocket:
+                await self.websocket.close()

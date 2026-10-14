@@ -6,11 +6,21 @@ from typing import cast
 from opentelemetry import trace
 
 from aiolocust import tracer
+from aiolocust.users.http import HttpUser
 from aiolocust.users.websocket import WebsocketUser
 
 
-class MyUser(WebsocketUser):
-    async def on_connect(self):
+class MyUser(WebsocketUser, HttpUser):
+    # by default, connect() just connects the websocket, but if you want, you can override it too
+    async def connect(self) -> None:
+        async with self.client.post("http://localhost:8081/") as resp:
+            js = await resp.json()
+            access_token = js["access_token"]
+            token_type = js["token_type"]
+        self.additional_headers = {"Authorization": f"{token_type} {access_token}"}
+        # now actually do the connect
+        await super().connect()
+
         message = cast(str, await self.websocket.recv())
         assert message.startswith('0{"sid"')
         with tracer.start_as_current_span("websocket.40", kind=trace.SpanKind.CLIENT) as span:

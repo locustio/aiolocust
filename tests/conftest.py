@@ -21,6 +21,16 @@ class _SimpleHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"OK")
 
+    def do_POST(self):
+        try:
+            # allow using /<status code> for custom status codes
+            self.send_response(int(self.path.lstrip("/")))
+        except ValueError:
+            self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"foo": "bar", "access_token": "abcd-1234", "token_type": "Bearer"}')
+
     def log_message(self, format, *args):
         # silence default logging to stderr during tests
         return

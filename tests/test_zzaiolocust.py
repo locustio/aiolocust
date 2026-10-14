@@ -39,7 +39,7 @@ def test_otel_log_filter_for_weakref():
     assert getattr(record, "ordinary_attribute") == "kept"
 
 
-async def test_websocket_example(websocket_server):
+async def test_websocket_example(websocket_server, http_server):  # noqa: ARG001
     received = asyncio.Queue()
 
     async def handler(ws):
@@ -53,11 +53,13 @@ async def test_websocket_example(websocket_server):
     url = await websocket_server(handler)
     proc = await asyncio.create_subprocess_exec(
         "aiolocust",
-        "examples/websocket.py",
+        "examples/websocket_ex.py",
         "-d",
         "1",
         "-H",
         url,
+        "-i",
+        "1",  # just to reduce spam in case of errors
         env={
             # "OTEL_TRACES_EXPORTER": "console",
             "OTEL_METRICS_EXPORTER": "none",
@@ -80,6 +82,7 @@ async def test_websocket_example(websocket_server):
     else:
         err = stderr.decode(errors="replace")
         print(err)
+        assert "ERROR" not in err
         assert "Shutting down" in err
         output = stdout.decode(errors="replace")
         print(output)
@@ -98,7 +101,7 @@ async def test_websocket_example(websocket_server):
 async def test_websocket_example_bad_host():
     proc = await asyncio.create_subprocess_exec(
         "aiolocust",
-        "examples/websocket.py",
+        "examples/websocket_ex.py",
         "-d",
         str(1 + WINDOWS_DELAY * 5),
         "-i",
