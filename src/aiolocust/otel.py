@@ -53,6 +53,11 @@ class SpanMetricsProcessor(SpanProcessor):
                 if attribute in span.attributes:
                     attributes[attribute] = span.attributes[attribute]  # pyright: ignore[reportArgumentType]
 
+        if span.status.status_code == StatusCode.ERROR:
+            attributes["otel.status_code"] = "ERROR"
+        elif span.status.status_code == StatusCode.OK:
+            attributes["otel.status_code"] = "OK"
+
         elapsed = (span.end_time - span.start_time) / 1_000_000_000
         error: str | None = None
         for event in span.events:
@@ -63,9 +68,13 @@ class SpanMetricsProcessor(SpanProcessor):
                     raise Exception("missing attributes on exception event")
         ttlb_histogram.record(elapsed, attributes=attributes)
 
-        events.request.fire(span.name, elapsed, str(error) if error else None)
         if span.status.status_code == StatusCode.ERROR:
             record_error(span.status.description or "Unknown error")
+            events.request.fire(
+                span.name, elapsed, str(error) if error else "StatusCode.ERROR but no exception event logged"
+            )
+        else:
+            events.request.fire(span.name, elapsed, None)
 
 
 HISTOGRAM_BOUNDARIES = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0]

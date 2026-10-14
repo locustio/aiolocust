@@ -4,6 +4,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 import pytest_asyncio
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from websockets.asyncio.server import serve
 
 
@@ -45,3 +48,12 @@ async def websocket_server():
             return f"ws://127.0.0.1:{port}"
 
         yield start
+
+
+@pytest.fixture
+def span_exporter(monkeypatch):
+    exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr("aiolocust.users.websocket.tracer", tracer_provider.get_tracer("aiolocust"))
+    return exporter
