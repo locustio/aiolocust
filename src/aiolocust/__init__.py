@@ -38,6 +38,7 @@ class User(ABC):
 
 from aiolocust.runner import Runner
 from aiolocust.users.http import HttpUser, LocustClientSession  # type: ignore # noqa: F401
+from aiolocust.users.websocket import WebsocketUser  # type: ignore # noqa: F401
 
 lock = Lock()
 

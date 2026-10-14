@@ -5,9 +5,7 @@ from typing import cast
 
 from opentelemetry import trace
 
-from aiolocust import tracer
-from aiolocust.users.http import HttpUser
-from aiolocust.users.websocket import WebsocketUser
+from aiolocust import HttpUser, WebsocketUser, tracer
 
 
 class MyUser(WebsocketUser, HttpUser):

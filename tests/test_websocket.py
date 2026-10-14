@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 from opentelemetry.trace import StatusCode
 
-from aiolocust.users.websocket import WebsocketUser
+from aiolocust import WebsocketUser
 
 
 async def user_loop(user_instance):  # this is basically copied from runner.user_loop()
