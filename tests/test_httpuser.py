@@ -23,6 +23,19 @@ async def test_basic(httpserver: HTTPServer):
     await user_loop(BasicUser())
 
 
+async def test_host_attribute(httpserver: HTTPServer):
+    httpserver.expect_request("/").respond_with_data("")
+
+    class BasicUser(HttpUser):
+        host = f"http://{httpserver.host}:{httpserver.port}"
+
+        async def run(self):
+            async with self.client.get("/") as resp:
+                assert resp.status == 200
+
+    await user_loop(BasicUser())
+
+
 async def test_kwargs_forwarded_to_session(httpserver: HTTPServer):
     httpserver.expect_request("/").respond_with_data("")
 

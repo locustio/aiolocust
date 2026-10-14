@@ -18,7 +18,10 @@ tracer = trace.get_tracer("aiolocust", version("aiolocust"))
 
 
 class User(ABC):
-    def __init__(self, runner: Runner | None = None, **kwargs: dict[str, Any]) -> None:
+    host: str | None = None
+
+    def __init__(self, runner: Runner | None = None) -> None:
+        self.base_url = runner.host if runner else self.host
         self.runner: Runner = runner  # pyright: ignore[reportAttributeAccessIssue] # always set outside of unit testing
         self.running = True
 
