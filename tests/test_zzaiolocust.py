@@ -115,7 +115,7 @@ async def test_websocket_example_bad_host():
         stderr=asyncio.subprocess.PIPE,
     )
     try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4 + WINDOWS_DELAY * 10)
     except TimeoutError:
         proc.kill()
         stdout, stderr = await proc.communicate()
