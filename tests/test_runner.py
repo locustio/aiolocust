@@ -2,6 +2,7 @@ import asyncio
 import re
 import threading
 import time
+from contextlib import asynccontextmanager
 from typing import cast
 
 import aiohttp
@@ -52,9 +53,6 @@ def test_unhandled_exception(http_server, capteesys):  # noqa: ARG001
     assert err == ""
     assert "Summary" in out
     assert_search(r"1 .* an error", out)
-
-
-from contextlib import asynccontextmanager
 
 
 def test_timeout_catching(http_server, capteesys):  # noqa: ARG001
