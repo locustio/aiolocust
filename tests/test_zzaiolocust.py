@@ -726,4 +726,4 @@ async def run(user):
             print(err)
             output = stdout.decode(errors="replace")
             print(output)
-            assert "Shutting down (reached iteration limit" in output
+            assert "Shutting down (reached iteration limit" in err
