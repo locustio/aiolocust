@@ -4,9 +4,10 @@ import json
 import logging
 import os
 import re
-import shlex
 import signal
 import unittest
+from asyncio.subprocess import Process
+from shlex import quote, split
 from tempfile import TemporaryDirectory
 from weakref import proxy
 
@@ -23,6 +24,21 @@ if os.name == "nt":
 else:
     WINDOWS_DELAY = 0
     creationflags = 0
+
+
+async def exec(cmd: str, **kwargs) -> Process:
+    args = split(cmd, posix=os.name != "nt")
+    if os.name == "nt":
+        # Non-POSIX shlex keeps surrounding quotes; remove them without changing Windows backslashes.
+        for index, arg in enumerate(args):
+            if len(arg) >= 2 and arg[0] == arg[-1] and arg[0] in ("'", '"'):
+                args[index] = arg[1:-1]
+    return await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        **kwargs,
+    )
 
 
 def test_otel_log_filter_for_weakref():
@@ -52,23 +68,8 @@ async def test_websocket_example(websocket_server, http_server):  # noqa: ARG001
                 await ws.send("40")
 
     url = await websocket_server(handler)
-    proc = await asyncio.create_subprocess_exec(
-        "aiolocust",
-        "examples/websocket_ex.py",
-        "-d",
-        "1",
-        "-H",
-        url,
-        "-i",
-        "1",  # just to reduce spam in case of errors
-        env={
-            # "OTEL_TRACES_EXPORTER": "console",
-            "OTEL_METRICS_EXPORTER": "none",
-            "OTEL_LOGS_EXPORTER": "none",
-            **os.environ,
-        },
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    proc = await exec(
+        f"aiolocust examples/websocket_ex.py -d 1 -H {url} -i 1",  # iteration limit is just to reduce spam in case of errors
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
@@ -111,25 +112,8 @@ async def test_websocket_example_concurrent_users(websocket_server, http_server)
                 await ws.send("40")
 
     url = await websocket_server(handler)
-    proc = await asyncio.create_subprocess_exec(
-        "aiolocust",
-        "examples/websocket_ex.py",
-        "-d",
-        "2",
-        "-u",
-        "5",
-        "-H",
-        url,
-        "-i",
-        "10",  # just to reduce spam in case of errors
-        env={
-            # "OTEL_TRACES_EXPORTER": "console",
-            "OTEL_METRICS_EXPORTER": "none",
-            "OTEL_LOGS_EXPORTER": "none",
-            **os.environ,
-        },
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    proc = await exec(
+        f"aiolocust examples/websocket_ex.py -d 2 -u 5 -H {url} -i 10"  # iteration limit is just to reduce spam in case of errors
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
@@ -161,23 +145,15 @@ async def test_websocket_example_concurrent_users(websocket_server, http_server)
 
 
 async def test_websocket_example_bad_host(http_server):  # noqa: ARG001
-    proc = await asyncio.create_subprocess_exec(
-        "aiolocust",
-        "examples/websocket_ex.py",
-        "-d",
-        str(1 + WINDOWS_DELAY * 5),
-        "-i",
-        "1",
-        "-H",
-        "ws://localhost:6666",
+    duration = 1 + WINDOWS_DELAY * 5
+    proc = await exec(
+        f"aiolocust examples/websocket_ex.py -d {duration} -i 1 -H ws://localhost:6666",
         env={
             "OTEL_TRACES_EXPORTER": "console",
             "OTEL_METRICS_EXPORTER": "none",
             "OTEL_LOGS_EXPORTER": "none",
             **os.environ,
         },
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4 + WINDOWS_DELAY * 10)
@@ -201,15 +177,13 @@ async def test_websocket_example_bad_host(http_server):  # noqa: ARG001
         assert await proc.wait() == 0
         # assert '"network.protocol.name": "websocket"' in output  # tracing stuff!
         assert not "unhandled error" in output
-        assert '"description": "OSError' in output
+        assert any(f'"description": "{error_type}' in output for error_type in ("OSError", "ConnectionRefusedError"))
 
 
 async def test_no_locustfile():
     with TemporaryDirectory() as tmp_dir:
-        proc = await asyncio.create_subprocess_exec(
+        proc = await exec(
             "aiolocust",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
             cwd=tmp_dir,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6)
@@ -233,22 +207,14 @@ async def run(self):
     async with self.client.get("http://localhost:8081/", name="foo") as resp:
         assert await resp.text() == "no way"
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "-u",
-            "5",
-            "--iterations",
-            "30",
-            "--instrument",
+        proc = await exec(
+            f"aiolocust {tempfile.name} -u 5 --iterations 30 --instrument",
             env={
                 "OTEL_TRACES_EXPORTER": "console",
                 "OTEL_METRICS_EXPORTER": "none",
                 "OTEL_LOGS_EXPORTER": "none",
                 **os.environ,
             },
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6)
@@ -297,19 +263,12 @@ async def run(user):
     async with user.client.get("http://localhost:8081/503", raise_for_status=True) as resp:
         pass
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "--iterations",
-            "1",
-            "--log-level",
-            "warning",
+        proc = await exec(
+            f"aiolocust {tempfile.name} --iterations 1 --log-level  warning",
             env={
                 "OTEL_TRACES_EXPORTER": "console",
                 **os.environ,
             },
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
@@ -346,15 +305,8 @@ async def run(user):
     async with user.client.get("http://localhost:8081/") as resp:
         pass
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "--iterations",
-            "1",
-            "--log-level",
-            "debug",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} --iterations 1 --log-level debug",
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
@@ -384,15 +336,8 @@ async def run(user):
     async with user.client.get("/?foo") as resp:
         pass
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "--iterations",
-            "1",
-            "--host",
-            "http://localhost:8081",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} -i 1 --host http://localhost:8081",
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
@@ -423,13 +368,8 @@ async def run(user):
     async with user.client.get("http://localhost:8081/") as resp:
         pass
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "--duration",
-            "10",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} --duration 10",
             creationflags=creationflags,
         )
         try:
@@ -465,14 +405,8 @@ async def run(user):
     async with user.client.get("http://localhost:8081/") as resp:
         pass
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "--duration",
-            "10",
-            "--instrument",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} --duration 10 --instrument",
             env={
                 "OTEL_METRICS_EXPORTER": "otlp",
                 "OTEL_EXPORTER_OTLP_ENDPOINT": "http://www.locust.cloud:22",  # invalid endpoint to simulate connection issues
@@ -515,13 +449,8 @@ async def run(user):
     await asyncio.sleep(0.1)
     raise Exception("an error")
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "--iterations",
-            "1",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} -i 1",
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3)
@@ -564,13 +493,8 @@ async def run(user):
                 configfile,
             )
 
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "--config",
-            configfile.name,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} --config {configfile.name}",
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=7 + WINDOWS_DELAY * 2)
@@ -595,13 +519,8 @@ async def run(user):
 
 
 async def test_user_forwards_params_to_session_and_handles_timeouts(http_server):  # noqa: ARG001
-    proc = await asyncio.create_subprocess_exec(
-        "aiolocust",
-        "examples/advanced_user_class_settings.py",
-        "--iterations",
-        "3",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    proc = await exec(
+        "aiolocust examples/advanced_user_class_settings.py -i 3",
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6)
@@ -631,15 +550,8 @@ import asyncio
 async def run(user):
     await asyncio.sleep(10)
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "-d",
-            "1",
-            "--config",
-            '{"shutdown_timeout":0.1}',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} -d 1 --config {quote('{"shutdown_timeout":0.1}')}",
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=9)
@@ -659,17 +571,9 @@ async def run(user):
 
 
 async def test_rate_limiting(http_server):  # noqa: ARG001
-    proc = await asyncio.create_subprocess_exec(
-        "aiolocust",
-        "examples/rate_limit.py",
-        "-d",
-        "4",
-        "-u",
-        "10",
-        "--config",
-        '{"stats_print_interval":1}',
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+
+    proc = await exec(
+        f"aiolocust examples/rate_limit.py -d 4 -u 10 --config {quote('{"stats_print_interval": 1}')}",
     )
     output, err = await communicate_print_and_decode(proc, 7)
     assert "Shutting down" in err
@@ -705,15 +609,8 @@ import asyncio
 async def run(user):
     await asyncio.sleep(0.1)
 """)
-        proc = await asyncio.create_subprocess_exec(
-            "aiolocust",
-            tempfile.name,
-            "-d",
-            "1",
-            "-i",
-            "1",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await exec(
+            f"aiolocust {tempfile.name} -d 1 -i 1",
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=9)
@@ -744,10 +641,8 @@ async def test_iteration_limit_log_message_with_ws(websocket_server, http_server
 
     url = await websocket_server(handler)
 
-    proc = await asyncio.create_subprocess_exec(
-        *shlex.split(f"aiolocust examples/websocket_ex.py -d 4 -u 2 -i 2 -H {url}"),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    proc = await exec(
+        f"aiolocust examples/websocket_ex.py -d 4 -u 2 -i 2 -H {url}",
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=9)
