@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import signal
 import unittest
 from tempfile import TemporaryDirectory
@@ -159,7 +160,7 @@ async def test_websocket_example_concurrent_users(websocket_server, http_server)
         assert not "unhandled error" in output
 
 
-async def test_websocket_example_bad_host():
+async def test_websocket_example_bad_host(http_server):  # noqa: ARG001
     proc = await asyncio.create_subprocess_exec(
         "aiolocust",
         "examples/websocket_ex.py",
@@ -170,7 +171,7 @@ async def test_websocket_example_bad_host():
         "-H",
         "ws://localhost:6666",
         env={
-            # "OTEL_TRACES_EXPORTER": "console",
+            "OTEL_TRACES_EXPORTER": "console",
             "OTEL_METRICS_EXPORTER": "none",
             "OTEL_LOGS_EXPORTER": "none",
             **os.environ,
@@ -200,6 +201,7 @@ async def test_websocket_example_bad_host():
         assert await proc.wait() == 0
         # assert '"network.protocol.name": "websocket"' in output  # tracing stuff!
         assert not "unhandled error" in output
+        assert '"description": "OSError' in output
 
 
 async def test_no_locustfile():
@@ -743,16 +745,7 @@ async def test_iteration_limit_log_message_with_ws(websocket_server, http_server
     url = await websocket_server(handler)
 
     proc = await asyncio.create_subprocess_exec(
-        "aiolocust",
-        "examples/websocket_ex.py",
-        "-d",
-        "4",
-        "-u",
-        "2",
-        "-i",
-        "2",
-        "-H",
-        url,
+        *shlex.split(f"aiolocust examples/websocket_ex.py -d 4 -u 2 -i 2 -H {url}"),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

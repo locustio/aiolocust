@@ -44,11 +44,7 @@ class WebsocketUser(User):
             span.set_attribute("network.protocol.name", "websocket")
             additional_headers = additional_headers or {}
             inject(additional_headers)
-            try:
-                self.websocket = await connect(url, additional_headers=additional_headers, ssl=ssl)
-            except Exception:
-                span.set_status(trace.StatusCode.ERROR, "woop")
-                raise
+            self.websocket = await connect(url, additional_headers=additional_headers, ssl=ssl)
 
     @abstractmethod
     async def receive(self) -> None: ...
