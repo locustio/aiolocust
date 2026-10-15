@@ -12,18 +12,16 @@ from aiolocust import User, tracer
 
 class WebsocketUser(User):
     """
-    Websocket test cases are different: instead of providing the normal run() interface, we use these methods:
+    Websocket test cases are different: instead of providing the normal run() interface, subclasses typically implement these methods:
 
-    connect() to establish the connection, creating self.websocket
-
-    on_connect() to do any initial communication before the send and receive loops start
+    on_start() to establish the connection (if you need to do auth before connecting or some initial WS communication afterwards)
 
     receive() to read messages received by the client
 
     send() to send messages, or do anything else you like to do concurrently with the receive loop.
     It stops automatically (without logging a ConnectionClosed) if the connection is closed by the server.
 
-    The run() method still exists, but has a default implementation, tying these things together
+    The run() method ties these things together. Unlike other User classes you don't typically override it.
     """
 
     websocket: ClientConnection = None  # type: ignore # just ensure the attribute exists
