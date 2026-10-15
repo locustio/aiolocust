@@ -148,6 +148,33 @@ async def test_wait_for_shutdown(outcome):
         runner.forced_shutdown_timer.cancel()
 
 
+async def test_concurrent_shutdown_calls(monkeypatch):
+    runner = Runner([])
+    runner.running = True
+    shutdown_event_calls = 0
+    allow_shutdown = asyncio.Event()
+
+    async def fire_shutdown_event(runner):  # noqa: ARG001
+        nonlocal shutdown_event_calls
+        shutdown_event_calls += 1
+        await allow_shutdown.wait()
+
+    monkeypatch.setattr("aiolocust.runner.events.shutdown_requested.fire", fire_shutdown_event)
+
+    first_shutdown = asyncio.create_task(runner.shutdown())
+    await asyncio.sleep(0)
+    second_shutdown = asyncio.create_task(runner.shutdown())
+    await asyncio.sleep(0)
+    allow_shutdown.set()
+
+    try:
+        await asyncio.gather(first_shutdown, second_shutdown)
+        assert shutdown_event_calls == 1
+        assert not runner.running
+    finally:
+        runner.forced_shutdown_timer.cancel()
+
+
 def test_iterations(http_server, capteesys):  # noqa: ARG001
     class TestUser(HttpUser):
         async def run(self):
