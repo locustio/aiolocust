@@ -222,10 +222,15 @@ class Runner:
 
         with self._shutdown_lock:
             self.running = False
-            waiters = tuple(self._shutdown_waiters)
 
         for user in list(self.running_users):
             user.running = False
+
+        self._notify_shutdown_waiters()
+
+    def _notify_shutdown_waiters(self) -> None:
+        with self._shutdown_lock:
+            waiters = tuple(self._shutdown_waiters)
 
         def notify(waiter: asyncio.Future[None]) -> None:
             if not waiter.done():
@@ -237,7 +242,7 @@ class Runner:
     async def wait_for_shutdown(self) -> None:
         waiter = asyncio.get_running_loop().create_future()
         with self._shutdown_lock:
-            if not self.running:
+            if not self.running or self.iteration_counter.value >= self.iteration_counter.limit:
                 return
             self._shutdown_waiters.add(waiter)
 
@@ -279,6 +284,8 @@ class Runner:
                     if not self.running_users:
                         await self.shutdown(f"reached iteration limit ({self.iteration_counter.value})")
                     break
+                if self.iteration_counter.value >= self.iteration_counter.limit:
+                    self._notify_shutdown_waiters()
                 try:
                     await user_instance.run()
                 except EXPECTED_ERRORS:
