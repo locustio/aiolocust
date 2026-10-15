@@ -126,7 +126,8 @@ async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_
     await user_loop(BasicUser())
 
     spans = span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    assert spans[0].name == "websocket.connect"
+    assert len(spans) == 2
+    assert spans[0].name == "GET http://localhost:8081/"
+    assert spans[1].name == "websocket.connect"
     assert received.qsize() == 1
     assert received.get_nowait() == "40"

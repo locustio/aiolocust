@@ -66,4 +66,5 @@ def span_exporter(monkeypatch):
     tracer_provider = TracerProvider()
     tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
     monkeypatch.setattr("aiolocust.users.websocket.tracer", tracer_provider.get_tracer("aiolocust"))
+    monkeypatch.setattr("aiolocust.users.http.tracer", tracer_provider.get_tracer("aiolocust"))
     return exporter
