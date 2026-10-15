@@ -5,7 +5,7 @@ from ssl import PROTOCOL_TLS_CLIENT, SSLContext
 import truststore
 from opentelemetry import trace
 from opentelemetry.propagate import inject
-from websockets import ClientConnection, ConnectionClosed, connect
+from websockets import ClientConnection, connect
 
 from aiolocust import User, tracer
 
@@ -57,12 +57,6 @@ class WebsocketUser(User):
 
     @abstractmethod
     async def send(self) -> None: ...
-
-    async def _send_wrapper(self) -> None:
-        try:
-            await self.send()
-        except ConnectionClosed:
-            return
 
     async def run(self) -> None:
         try:
