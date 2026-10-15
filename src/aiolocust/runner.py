@@ -144,6 +144,7 @@ class Runner:
         signal.signal(signal.SIGTERM, self.signal_handler)
         self.running = False
         self._shutdown_lock = threading.Lock()
+        self._shutdown_started = False
         self._shutdown_waiters: set[asyncio.Future[None]] = set()
         self.start_time = 0.0
         configure_telemetry()
@@ -209,9 +210,11 @@ class Runner:
             await asyncio.sleep(self.stats_print_interval)
 
     async def shutdown(self, reason=None) -> None:
-        if not self.running:
-            logger.debug("Already shutting down, ignoring shutdown() call")
-            return
+        with self._shutdown_lock:
+            if not self.running or self._shutdown_started:
+                logger.debug("Already shutting down, ignoring shutdown() call")
+                return
+            self._shutdown_started = True
 
         logger.info(f"Shutting down ({reason or 'no reason given'})")
         await events.shutdown_requested.fire(self)
