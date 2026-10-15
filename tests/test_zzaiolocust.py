@@ -27,8 +27,11 @@ else:
 
 
 async def exec(cmd: str, **kwargs) -> Process:
+    args = split(cmd, posix=os.name != "nt")
+    if os.name == "nt":
+        args = [arg[1:-1] if arg[:1] == arg[-1:] and arg[:1] in ("'", '"') else arg for arg in args]
     return await asyncio.create_subprocess_exec(
-        *split(cmd),
+        *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         **kwargs,
@@ -171,7 +174,7 @@ async def test_websocket_example_bad_host(http_server):  # noqa: ARG001
         assert await proc.wait() == 0
         # assert '"network.protocol.name": "websocket"' in output  # tracing stuff!
         assert not "unhandled error" in output
-        assert '"description": "OSError' in output
+        assert any(f'"description": "{error_type}' in output for error_type in ("OSError", "ConnectionRefusedError"))
 
 
 async def test_no_locustfile():
