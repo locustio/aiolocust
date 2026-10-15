@@ -29,7 +29,10 @@ else:
 async def exec(cmd: str, **kwargs) -> Process:
     args = split(cmd, posix=os.name != "nt")
     if os.name == "nt":
-        args = [arg[1:-1] if arg[:1] == arg[-1:] and arg[:1] in ("'", '"') else arg for arg in args]
+        # Non-POSIX shlex keeps surrounding quotes; remove them without changing Windows backslashes.
+        for index, arg in enumerate(args):
+            if len(arg) >= 2 and arg[0] == arg[-1] and arg[0] in ("'", '"'):
+                args[index] = arg[1:-1]
     return await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
