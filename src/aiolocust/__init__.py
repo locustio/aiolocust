@@ -6,17 +6,12 @@ from collections.abc import Coroutine as AbcCoroutine
 from contextlib import asynccontextmanager
 from functools import wraps
 from importlib.metadata import version
-from threading import Lock
 from typing import Any, Concatenate, ParamSpec, TypeVar
 
 from opentelemetry import trace
 from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 tracer = trace.get_tracer("aiolocust", version("aiolocust"))
-
-P = ParamSpec("P")
-R = TypeVar("R")
-UserT = TypeVar("UserT", bound="User")
 
 
 class User(ABC):
@@ -40,10 +35,8 @@ from aiolocust.runner import Runner
 from aiolocust.users.http import HttpUser, LocustClientSession  # type: ignore # noqa: F401
 from aiolocust.users.websocket import WebsocketUser  # type: ignore # noqa: F401
 
-lock = Lock()
 
-
-class LimiterPortal:
+class _LimiterPortal:
     def __init__(self, rate: Rate) -> None:
         self._loop = asyncio.new_event_loop()
         self._ready = threading.Event()
@@ -95,7 +88,10 @@ class LimiterPortal:
 
 
 def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int = 3):
-    limiter = LimiterPortal(Rate(rate, duration, burst))
+    limiter = _LimiterPortal(Rate(rate, duration, burst))
+    P = ParamSpec("P")
+    R = TypeVar("R")
+    UserT = TypeVar("UserT", bound="User")
 
     def decorate(
         func: Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R]],
