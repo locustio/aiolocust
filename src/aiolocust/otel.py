@@ -32,7 +32,7 @@ from aiolocust import config, events
 from aiolocust.errortracker import record_error
 
 meter = metrics.get_meter("locust")
-ttlb_histogram = meter.create_histogram(
+duration_histogram = meter.create_histogram(
     "locust.client.duration", unit="s", description="Time to last byte for requests"
 )
 
@@ -66,7 +66,7 @@ class SpanMetricsProcessor(SpanProcessor):
                     error = f"{event.attributes['exception.type']}: {attr['exception.message']}"
                 else:
                     raise Exception("missing attributes on exception event")
-        ttlb_histogram.record(elapsed, attributes=attributes)
+        duration_histogram.record(elapsed, attributes=attributes)
 
         if span.status.status_code == StatusCode.ERROR:
             record_error(span.status.description or "Unknown error")
