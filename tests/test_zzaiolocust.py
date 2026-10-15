@@ -727,3 +727,60 @@ async def run(user):
             output = stdout.decode(errors="replace")
             print(output)
             assert "Shutting down (reached iteration limit" in err
+
+
+async def test_iteration_limit_log_message_with_ws(websocket_server, http_server):  # noqa: ARG001
+    received = asyncio.Queue()
+
+    async def handler(ws):
+        # engineIO type handshake
+        await ws.send('0{"sid": "abcd123"}')
+        async for message in ws:
+            await received.put(message)
+            if message == "40":
+                await ws.send("40")
+
+    url = await websocket_server(handler)
+
+    proc = await asyncio.create_subprocess_exec(
+        "aiolocust",
+        "examples/websocket_ex.py",
+        "-d",
+        "4",
+        "-u",
+        "2",
+        "-i",
+        "2",
+        "-H",
+        url,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=9)
+    except TimeoutError:
+        proc.kill()
+        stdout, stderr = await proc.communicate()
+        output = stdout.decode(errors="replace")
+        print(output)
+        raise AssertionError("process never terminated") from None
+    else:
+        err = stderr.decode(errors="replace")
+        print(err)
+        output = stdout.decode(errors="replace")
+        print(output)
+        err = stderr.decode(errors="replace")
+        print(err)
+        assert "ERROR" not in err
+        assert "Shutting down (reached iteration limit" in err
+        output = stdout.decode(errors="replace")
+        print(output)
+        assert " websocket.connect " in output
+        assert "Summary" in output
+        assert_search(r" websocket\.connect +[│|] +2 +[│|] +0 \(0\.0%\) ", output)
+        assert await proc.wait() == 0
+        try:
+            assert received.get_nowait() == "40"
+        except asyncio.QueueEmpty:
+            raise Exception("WS server received no messages!")
+        assert not "unhandled error" in output

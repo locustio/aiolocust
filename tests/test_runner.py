@@ -121,15 +121,15 @@ def test_manual_shutdown(http_server, capteesys):  # noqa: ARG001
     # assert "foo" in out
 
 
-@pytest.mark.parametrize("outcome", ["shutdown", "cancel", "stopped"])
+@pytest.mark.parametrize("outcome", ["shutdown", "cancel", "stopped", "iteration_limit"])
 async def test_wait_for_shutdown(outcome):
     # ai generated test case
-    runner = Runner([])
+    runner = Runner([], iterations=0 if outcome == "iteration_limit" else None)
     runner.running = outcome != "stopped"
     task = asyncio.create_task(runner.wait_for_shutdown())
     try:
         await asyncio.sleep(0)
-        if outcome == "stopped":
+        if outcome in ("stopped", "iteration_limit"):
             assert await asyncio.wait_for(task, 1) is None
         else:
             assert not task.done()
@@ -145,6 +145,45 @@ async def test_wait_for_shutdown(outcome):
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+        runner.forced_shutdown_timer.cancel()
+
+
+async def test_iteration_limit_notifies_waiters_from_another_thread():
+    allow_finish = threading.Event()
+
+    class TestUser(User):
+        async def run(self):
+            if self.runner.iteration_counter.value == 2:
+                assert await asyncio.to_thread(allow_finish.wait, 2)
+
+    runner = Runner([TestUser], iterations=2)
+    runner.running = True
+    user = TestUser(runner)
+    runner.running_users.add(user)
+    waiters = [asyncio.create_task(runner.wait_for_shutdown()) for _ in range(3)]
+    cancelled = asyncio.create_task(runner.wait_for_shutdown())
+    user_task = None
+    try:
+        await asyncio.sleep(0)
+        cancelled.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cancelled
+        assert all(not waiter.done() for waiter in waiters)
+        user_task = asyncio.create_task(asyncio.to_thread(asyncio.run, runner.user_loop(user)))
+        await asyncio.wait_for(asyncio.gather(*waiters), timeout=1)
+        assert runner.running
+        assert not user_task.done()
+        assert runner.iteration_counter.value == 2
+        assert not runner._shutdown_waiters
+        allow_finish.set()
+        await user_task
+    finally:
+        allow_finish.set()
+        if user_task:
+            await user_task
+        for waiter in [*waiters, cancelled]:
+            waiter.cancel()
+        await asyncio.gather(*waiters, cancelled, return_exceptions=True)
         runner.forced_shutdown_timer.cancel()
 
 
@@ -410,7 +449,7 @@ async def test_websocket_user(websocket_server, capteesys):
 
     runner = Runner([MyUser], user_count=20, duration=1, host=url)
     await runner.run_test_async()
-    assert received.qsize() >= 10
+    assert received.qsize() >= 20
 
     while True:
         try:
@@ -424,6 +463,99 @@ async def test_websocket_user(websocket_server, capteesys):
     assert "Summary" in output
     assert_search(r" websocket.connect[ ]+│[ ]+[20].*\(0.0%\)", output)
     assert_search(r" websocket.40[ ]+│[ ]+[20].*\(0.0%\)", output)
+
+
+@pytest.mark.parametrize(("user_count", "iterations", "event_loops"), [(1, 1, 1), (2, 1, 2), (4, 3, 2)])
+async def test_websocket_user_iteration_exit(websocket_server, capteesys, caplog, user_count, iterations, event_loops):
+    received = asyncio.Queue()
+
+    async def handler(ws):
+        # engineIO type handshake
+        await ws.send('0{"sid": "abcd123"}')
+        async for message in ws:
+            await received.put(message)
+            if message == "40":
+                await ws.send('40{"sid":"something"}')
+
+    url = await websocket_server(handler)
+
+    class MyUser(WebsocketUser):
+        async def on_start(self):
+            await super().connect()
+            message = cast(str, await self.websocket.recv())
+            assert message.startswith('0{"sid"')
+            with tracer.start_as_current_span("websocket.40", kind=trace.SpanKind.CLIENT) as span:
+                span.set_attribute("network.protocol.name", "websocket")
+                await self.websocket.send("40")
+                message = cast(str, await self.websocket.recv())
+                assert message.startswith("40")
+
+        async def receive(self):
+            async for message in self.websocket:
+                s = str(message)
+                if s == "2":
+                    await self.websocket.send("3")  # heartbeat response
+                elif s.startswith("42["):
+                    pass
+                else:
+                    print(f"Unknown message received: {s}")
+
+        async def send(self):
+            while True:
+                await self.websocket.send(f'42["ping",{{"ts":{time.time_ns()}}}]')
+                await asyncio.sleep(0.1)
+
+    runner = Runner(
+        [MyUser], user_count=user_count, iterations=iterations, duration=4, host=url, event_loops=event_loops
+    )
+    start = time.monotonic()
+    with caplog.at_level("INFO", logger="aiolocust.runner"):
+        await runner.run_test_async()
+    assert time.monotonic() - start < 3
+    assert f"Shutting down (reached iteration limit ({iterations}))" in caplog.text
+    assert runner.iteration_counter.value == iterations
+    output, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in output
+
+    messages = [received.get_nowait() for _ in range(received.qsize())]
+    assert messages.count("40") == iterations
+    assert_search(rf" websocket.connect[ ]+│[ ]+{iterations}.*\(0.0%\)", output)
+    assert_search(rf" websocket.40[ ]+│[ ]+{iterations}.*\(0.0%\)", output)
+
+
+async def test_websocket_iteration_limit_with_regular_user(websocket_server, caplog):
+    async def handler(ws):
+        async for message in ws:
+            await ws.send(message)
+
+    url = await websocket_server(handler)
+
+    class SocketUser(WebsocketUser):
+        async def receive(self):
+            async for message in self.websocket:
+                pass
+
+        async def send(self):
+            while True:
+                await self.websocket.send("ping")
+                await asyncio.sleep(0.01)
+
+    completed = []
+
+    class RegularUser(User):
+        async def run(self):
+            await asyncio.sleep(0.05)
+            completed.append(True)
+
+    runner = Runner([SocketUser, RegularUser], user_count=2, iterations=3, duration=4, host=url, event_loops=2)
+    start = time.monotonic()
+    with caplog.at_level("INFO", logger="aiolocust.runner"):
+        await runner.run_test_async()
+    assert time.monotonic() - start < 3
+    assert "Shutting down (reached iteration limit (3))" in caplog.text
+    assert runner.iteration_counter.value == 3
+    assert len(completed) == 2
 
 
 async def test_websocket_port_closed(capteesys):
