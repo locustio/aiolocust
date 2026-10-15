@@ -54,15 +54,13 @@ class HttpUser(User):
     ```
     """
 
-    def __init__(self, runner: Runner | None = None) -> None:
-        super().__init__(runner)
-        self.client: LocustClientSession  # type: ignore[assignment] # always set in cm
+    client: LocustClientSession  # type: ignore[assignment] # always set in cm
 
     @asynccontextmanager
     async def cm(self) -> AsyncGenerator[None]:
         async with LocustClientSession(
             self.runner,
-            self.base_url,
+            self.host,
             connector=aiohttp.TCPConnector(ssl=self.ssl_context) if self.ssl_context else None,
             **self.session_kwargs,
         ) as self.client:

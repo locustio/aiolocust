@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 from opentelemetry.trace import StatusCode
 
-from aiolocust import WebsocketUser
+from aiolocust import HttpUser, WebsocketUser
 
 
 async def user_loop(user_instance):  # this is basically copied from runner.user_loop()
@@ -31,7 +31,8 @@ async def test_basic(websocket_server, span_exporter):
     class BasicUser(WebsocketUser):
         host = url
 
-        async def on_connect(self):
+        async def on_start(self):
+            await self.connect()
             message = cast(str, await self.websocket.recv())
             assert message.startswith('0{"sid"')
             await self.websocket.send("40")
@@ -58,6 +59,14 @@ async def test_basic(websocket_server, span_exporter):
     spans = span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "websocket.connect"
+    assert received.qsize() == 7
+
+    while True:
+        try:
+            message = received.get_nowait()
+            assert message == "40" or message == "3" or message.startswith('42["ping",')
+        except asyncio.QueueEmpty:
+            break
 
 
 async def test_websocket_user_bad_host(span_exporter):
@@ -77,3 +86,47 @@ async def test_websocket_user_bad_host(span_exporter):
     assert len(spans) == 1
     assert spans[0].name == "websocket.connect"
     assert spans[0].status.status_code == StatusCode.ERROR
+
+
+async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_exporter):  # noqa: ARG001
+    received = asyncio.Queue()
+
+    async def handler(ws):
+        # engineIO type handshake
+        await ws.send('0{"sid": "abcd123"}')
+        async for message in ws:
+            await received.put(message)
+            if message == "40":
+                await ws.send('40{"sid":"something"}')
+                await asyncio.sleep(0.01)
+                await ws.send("2")
+
+    url = await websocket_server(handler)
+
+    class BasicUser(WebsocketUser, HttpUser):
+        host = url
+
+        async def on_start(self):
+            async with self.client.get("http://localhost:8081/") as resp:
+                pass
+            await self.connect()
+            message = cast(str, await self.websocket.recv())
+            assert message.startswith('0{"sid"')
+            await self.websocket.send("40")
+            message = cast(str, await self.websocket.recv())
+            assert message.startswith("40")
+
+        async def receive(self):
+            async for message in self.websocket:
+                pass
+
+        async def send(self):
+            await asyncio.sleep(0.1)
+
+    await user_loop(BasicUser())
+
+    spans = span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "websocket.connect"
+    assert received.qsize() == 1
+    assert received.get_nowait() == "40"

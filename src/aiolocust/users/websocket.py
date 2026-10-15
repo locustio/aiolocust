@@ -27,8 +27,6 @@ class WebsocketUser(User):
     """
 
     websocket: ClientConnection = None  # type: ignore # just ensure the attribute exists
-    base_url: str  # Mandatory for WebsocketUser
-    additional_headers = {}
 
     async def on_start(self) -> None:
         await self.connect()
@@ -36,7 +34,8 @@ class WebsocketUser(User):
     async def connect(
         self, url: str | None = None, ssl: SSLContext | None = None, additional_headers: dict | None = None
     ) -> None:
-        url = url or self.base_url
+        url = url or self.host
+        assert url, "No url specified"
         if not ssl and url.startswith("wss://"):
             ssl = truststore.SSLContext(PROTOCOL_TLS_CLIENT)
         with tracer.start_as_current_span(

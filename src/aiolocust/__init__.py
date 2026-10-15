@@ -18,7 +18,8 @@ class User(ABC):
     host: str | None = None
 
     def __init__(self, runner: Runner | None = None) -> None:
-        self.base_url = runner.host if runner else self.host
+        if runner and runner.host:
+            self.host = runner.host
         self.runner: Runner = runner  # pyright: ignore[reportAttributeAccessIssue] # always set outside of unit testing
         self.running = True
 
