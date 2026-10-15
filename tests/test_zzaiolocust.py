@@ -98,6 +98,67 @@ async def test_websocket_example(websocket_server, http_server):  # noqa: ARG001
         assert not "unhandled error" in output
 
 
+async def test_websocket_example_concurrent_users(websocket_server, http_server):  # noqa: ARG001
+    received = asyncio.Queue()
+
+    async def handler(ws):
+        # engineIO type handshake
+        await ws.send('0{"sid": "abcd123"}')
+        async for message in ws:
+            await received.put(message)
+            if message == "40":
+                await ws.send("40")
+
+    url = await websocket_server(handler)
+    proc = await asyncio.create_subprocess_exec(
+        "aiolocust",
+        "examples/websocket_ex.py",
+        "-d",
+        "2",
+        "-u",
+        "5",
+        "-H",
+        url,
+        "-i",
+        "10",  # just to reduce spam in case of errors
+        env={
+            # "OTEL_TRACES_EXPORTER": "console",
+            "OTEL_METRICS_EXPORTER": "none",
+            "OTEL_LOGS_EXPORTER": "none",
+            **os.environ,
+        },
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4)
+    except TimeoutError:
+        proc.kill()
+        stdout, stderr = await proc.communicate()
+        err = stderr.decode(errors="replace")
+        print(err)
+        output = stdout.decode(errors="replace")
+        print(output)
+        raise AssertionError("process never terminated") from None
+    else:
+        err = stderr.decode(errors="replace")
+        print(err)
+        assert "ERROR" not in err
+        assert "Shutting down" in err
+        output = stdout.decode(errors="replace")
+        print(output)
+        assert " websocket.connect " in output
+        assert "Summary" in output
+        assert_search(r" websocket\.connect +[│|] +5 +[│|] +0 \(0\.0%\) ", output)
+        assert await proc.wait() == 0
+        try:
+            assert received.get_nowait() == "40"
+        except asyncio.QueueEmpty:
+            raise Exception("WS server received no messages!")
+        # assert '"network.protocol.name": "websocket"' in output  # tracing stuff!
+        assert not "unhandled error" in output
+
+
 async def test_websocket_example_bad_host():
     proc = await asyncio.create_subprocess_exec(
         "aiolocust",
@@ -631,3 +692,38 @@ async def communicate_print_and_decode(proc, timeout=None):
     output = stdout.decode(errors="replace")
     print(output)
     return output, err
+
+
+async def test_iteration_limit_log_message():
+    with TemporaryDirectory() as tmp_dir:
+        with open(os.path.join(tmp_dir, "my_script.py"), "w") as tempfile:
+            tempfile.write("""
+import asyncio
+
+async def run(user):
+    await asyncio.sleep(0.1)
+""")
+        proc = await asyncio.create_subprocess_exec(
+            "aiolocust",
+            tempfile.name,
+            "-d",
+            "1",
+            "-i",
+            "1",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=9)
+        except TimeoutError:
+            proc.kill()
+            stdout, stderr = await proc.communicate()
+            output = stdout.decode(errors="replace")
+            print(output)
+            raise AssertionError("process never terminated") from None
+        else:
+            err = stderr.decode(errors="replace")
+            print(err)
+            output = stdout.decode(errors="replace")
+            print(output)
+            assert "Shutting down (reached iteration limit" in output
