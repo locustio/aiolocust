@@ -356,7 +356,7 @@ async def test_websocket_user(websocket_server, capteesys):
     url = await websocket_server(handler)
 
     class MyUser(WebsocketUser):
-        async def connect(self):
+        async def on_start(self):
             await super().connect()
             message = cast(str, await self.websocket.recv())
             assert message.startswith('0{"sid"')

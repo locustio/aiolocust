@@ -1,6 +1,6 @@
 import asyncio
-import ssl
 from abc import abstractmethod
+from ssl import PROTOCOL_TLS_CLIENT, SSLContext
 
 import truststore
 from opentelemetry import trace
@@ -30,22 +30,25 @@ class WebsocketUser(User):
     base_url: str  # Mandatory for WebsocketUser
     additional_headers = {}
 
-    async def connect(self) -> None:
-        """Actually create the connection. Usually there's no need to override this"""
+    async def on_start(self) -> None:
+        await self.connect()
+
+    async def connect(
+        self, url: str | None = None, ssl: SSLContext | None = None, additional_headers: dict | None = None
+    ) -> None:
+        url = url or self.base_url
+        if not ssl and url.startswith("wss://"):
+            ssl = truststore.SSLContext(PROTOCOL_TLS_CLIENT)
         with tracer.start_as_current_span(
             "websocket.connect",
             kind=trace.SpanKind.CLIENT,
         ) as span:
-            span.set_attribute("url.full", self.base_url)
+            span.set_attribute("url.full", url)
             span.set_attribute("network.protocol.name", "websocket")
-            additional_headers = self.additional_headers or {}
+            additional_headers = additional_headers or {}
             inject(additional_headers)
             try:
-                self.websocket = await connect(
-                    self.base_url,
-                    additional_headers=additional_headers,
-                    ssl=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT) if self.base_url.startswith("wss://") else None,
-                )
+                self.websocket = await connect(url, additional_headers=additional_headers, ssl=ssl)
             except Exception:
                 span.set_status(trace.StatusCode.ERROR, "woop")
                 raise
@@ -64,7 +67,8 @@ class WebsocketUser(User):
 
     async def run(self) -> None:
         try:
-            await self.connect()
+            await self.on_start()
+            assert self.websocket, "No websocket was created during on_start!"
             async with asyncio.TaskGroup() as group:
                 tasks = [
                     group.create_task(self.receive()),

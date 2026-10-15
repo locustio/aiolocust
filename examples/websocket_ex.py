@@ -11,16 +11,15 @@ from aiolocust import HttpUser, WebsocketUser, tracer
 class MyUser(WebsocketUser, HttpUser):
     host = "ws://localhost:1234"
 
-    # by default, connect() just connects the websocket, but if you want, you can override it too
-    async def connect(self) -> None:
+    # by default, on_start() just connects the websocket, but sometimes you want to do more before send/receive is started
+    async def on_start(self) -> None:
         async with self.client.post("http://localhost:8081/") as resp:
             js = await resp.json()
             access_token = js["access_token"]
             token_type = js["token_type"]
-        self.additional_headers = {"Authorization": f"{token_type} {access_token}"}
 
-        # now actually do the connect, using host specified with attribute or --host, and self.additional_headers
-        await super().connect()
+        # now actually do the connect, implicitly using host specified with attribute or --host
+        await self.connect(additional_headers={"Authorization": f"{token_type} {access_token}"})
 
         message = cast(str, await self.websocket.recv())
         assert message.startswith('0{"sid"')
