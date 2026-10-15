@@ -18,17 +18,21 @@ class MyUser(WebsocketUser, HttpUser):
             access_token = js["access_token"]
             token_type = js["token_type"]
         self.additional_headers = {"Authorization": f"{token_type} {access_token}"}
+
         # now actually do the connect, using host specified with attribute or --host, and self.additional_headers
         await super().connect()
 
         message = cast(str, await self.websocket.recv())
         assert message.startswith('0{"sid"')
+
+        # here's how to record a span (which in turn gets added to request metrics & command line output)
         with tracer.start_as_current_span("websocket.40", kind=trace.SpanKind.CLIENT) as span:
             span.set_attribute("network.protocol.name", "websocket")
             await self.websocket.send("40")
             message = cast(str, await self.websocket.recv())
             assert message.startswith("40")
 
+    # receive() and send() will run concurrently until the Runner is stopped (or one of them exits)
     async def receive(self):
         async for message in self.websocket:
             s = str(message)
