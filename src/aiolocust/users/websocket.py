@@ -30,12 +30,18 @@ class WebsocketUser(User):
         await self.connect()
 
     async def connect(
-        self, url: str | None = None, ssl: SSLContext | None = None, additional_headers: dict | None = None
+        self,
+        url: str | None = None,
+        ssl: SSLContext | None = None,
+        additional_headers: dict | None = None,
+        **kwargs,
     ) -> None:
         url = url or self.host
         assert url, "No url specified"
         if not ssl and url.startswith("wss://"):
             ssl = truststore.SSLContext(PROTOCOL_TLS_CLIENT)
+            ssl.check_hostname = False
+
         with tracer.start_as_current_span(
             "websocket.connect",
             kind=trace.SpanKind.CLIENT,
@@ -44,7 +50,12 @@ class WebsocketUser(User):
             span.set_attribute("network.protocol.name", "websocket")
             additional_headers = additional_headers or {}
             inject(additional_headers)
-            self.websocket = await connect(url, additional_headers=additional_headers, ssl=ssl)
+            self.websocket = await connect(
+                url,
+                additional_headers=additional_headers,
+                ssl=ssl,
+                **kwargs,
+            )
 
     @abstractmethod
     async def receive(self) -> None: ...
