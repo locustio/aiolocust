@@ -102,6 +102,7 @@ def configure_telemetry() -> None:
             "host.name": socket.gethostname(),
             "filename": config.filename,
             "profile": config.profile or "",
+            "process.owner": os.getenv("USER", "unknown"),
         }
     )
     logger_provider = LoggerProvider(resource=resource)
