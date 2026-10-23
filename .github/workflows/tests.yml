@@ -54,7 +54,7 @@ jobs:
           grep https://www.google.com asdf.py
           grep -v Proxy-Connection asdf.py
           grep -v FOO asdf.py
-          grep -v '{"stringValue": "myString", "intValue": 3, "boolean": true}' asdf.py
+          grep -v 'data={"stringValue": "myString", "intValue": 3, "boolean": true}' asdf.py
           uv run aiolocust -i 1 asdf.py | tee locust_output.txt
           echo
           grep https://www.google.com locust_output.txt
