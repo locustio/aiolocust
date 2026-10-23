@@ -50,7 +50,7 @@ jobs:
           grep "This file was generated using mitmproxy" asdf.py
           curl -x http://localhost:8080 -k https://www.google.com
           curl -x http://localhost:8080 -k https://www.google.com/?FOO
-          curl -x http://localhost:8080 -X PUT https://www.google.com -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"stringValue": "myString", "intValue": 3, "boolean": true}'
+          curl -x http://localhost:8080 -k -X PUT https://www.google.com -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"stringValue": "myString", "intValue": 3, "boolean": true}'
           grep https://www.google.com asdf.py
           grep -v Proxy-Connection asdf.py
           grep -v FOO asdf.py
