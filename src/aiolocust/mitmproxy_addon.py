@@ -1,7 +1,10 @@
 # Used together with mitmproxy to generate a locustfile based on live traffic
 # mitmdump -s mitmproxy_addon.py
-
+import ast
+import io
+import json
 import os
+import tokenize
 from datetime import datetime
 
 # this script is meant to be imported from mitmproxy, not run using aiolocust, so type checking wouldn't work
@@ -27,6 +30,18 @@ print(IGNORED_HEADERS)
 IGNORED_METHODS = os.getenv("LOCUST_IGNORED_METHODS", "options").split(",")
 
 
+def dict_source(data: dict) -> str:
+    """We want nice double quotes"""
+    tokens = []
+    for token in tokenize.generate_tokens(io.StringIO(repr(data)).readline):
+        if token.type == tokenize.STRING:
+            value = ast.literal_eval(token.string)
+            if isinstance(value, str):
+                token = token._replace(string=json.dumps(value, ensure_ascii=False))
+        tokens.append(token)
+    return tokenize.untokenize(tokens)
+
+
 class LocustExporter:
     def __init__(self) -> None:
         self.filename = os.getenv("LOCUST_LOCUSTFILE", "locustfile.py")
@@ -47,10 +62,24 @@ async def run(self: HttpUser):
         method: str = flow.request.method.lower()
         url: str = flow.request.url
         headers = dict(flow.request.headers)
+        content = flow.request.content
+
+        content_type = flow.request.headers.get("content-type", "")
+        content_type = content_type.split(";", 1)[0].strip().lower()
 
         for header in headers.copy():
             if header.lower() in IGNORED_HEADERS:
                 del headers[header]
+        header_str = json.dumps(headers)
+
+        body_str = f"data={content!r}"
+        if content_type == "application/json" and content:
+            try:
+                body = dict_source(json.loads(content))
+            except ValueError, UnicodeDecodeError:
+                pass  # Preserve the original body if JSON parsing fails.
+            else:
+                body_str = f"json={body}"
 
         for ignored_url in IGNORED_URLS:
             if url.startswith(ignored_url):
@@ -65,7 +94,11 @@ async def run(self: HttpUser):
             self.new_file()
 
         with open(self.filename, "a") as f:
-            f.write(f"""    async with self.client.{method}("{url}", headers={headers}) as resp:
+            f.write(f"""    async with self.client.{method}(
+        "{url}",
+        headers={header_str},
+        {body_str},
+    ) as resp:
         pass\n""")
 
 
