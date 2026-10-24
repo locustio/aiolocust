@@ -14,7 +14,7 @@ It has a ton of [advantages over its predecessor](#simple-and-consistent-syntax)
 We recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/) for installation. aiolocust requires a freethreading Python build, which is often the default, but it is sometimes necessary to be explicit, using the --python flag:
 
 ```text
-> uv tool install --python 3.14t aiolocust
+> uv tool install --python 3.15t aiolocust
 ...
 > aiolocust
 Welcome to aiolocust! Create a locustfile.py in your current directory or specify a different one as an argument.
@@ -92,7 +92,7 @@ If you don't want to code your locustfile from scratch, you can use [mitmproxy](
 Note: these steps makes the mitmproxy's CA trusted __system wide__.
 
 ```bash
-uv tool install -p 3.14+gil --with aiolocust mitmproxy # mitmproxy dependencies don't like freethreading atm
+uv tool install -p 3.15+gil --with aiolocust mitmproxy # mitmproxy dependencies don't like freethreading atm
 mitmproxy   # Run it once to generate ~/.mitmproxy (quit by pressing 'q')
 ```
 
@@ -101,7 +101,7 @@ mitmproxy   # Run it once to generate ~/.mitmproxy (quit by pressing 'q')
 See [mitmproxy_addon.py](src/aiolocust/mitmproxy_addon.py) for details.
 
 ```text
-mitmdump -s $(uv tool dir)/mitmproxy/lib/python3.14/site-packages/aiolocust/mitmproxy_addon.py
+mitmdump -s $(uv tool dir)/mitmproxy/lib/python3.15/site-packages/aiolocust/mitmproxy_addon.py
 ```
 
 ### Use the proxy from your browser or app
@@ -190,7 +190,7 @@ Users/threads can also communicate easily with each other, as they are in the sa
 If your tests need additional packages, or you want to structure your code in a complete Python project:
 
 ```text
-uv init --python 3.14t
+uv init --python 3.15t
 uv add aiolocust
 uv run aiolocust
 ```
