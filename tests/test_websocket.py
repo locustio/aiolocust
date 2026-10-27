@@ -135,5 +135,3 @@ async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_
     assert received.qsize() == 1
     assert received.get_nowait() == "40"
 
-    assert received.qsize() == 1
-    assert received.get_nowait() == "40"
