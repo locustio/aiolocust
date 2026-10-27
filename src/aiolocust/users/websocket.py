@@ -1,10 +1,12 @@
 import asyncio
 from abc import abstractmethod
-from ssl import PROTOCOL_TLS_CLIENT, SSLContext
+from collections.abc import Mapping
+from ssl import PROTOCOL_TLS_CLIENT, DER_cert_to_PEM_cert, SSLContext
 
 import truststore
 from opentelemetry import trace
 from opentelemetry.propagate import inject
+from opentelemetry.util.types import AnyValue
 from websockets import ClientConnection, connect
 
 from aiolocust import User, tracer
@@ -34,6 +36,7 @@ class WebsocketUser(User):
         url: str | None = None,
         ssl: SSLContext | None = None,
         additional_headers: dict | None = None,
+        additional_attributes: Mapping[str, AnyValue] | None = None,
         **kwargs,
     ) -> None:
         url = url or self.host
@@ -48,6 +51,8 @@ class WebsocketUser(User):
         ) as span:
             span.set_attribute("url.full", url)
             span.set_attribute("network.protocol.name", "websocket")
+            if additional_attributes:
+                span.set_attributes(additional_attributes)
             additional_headers = additional_headers or {}
             inject(additional_headers)
             self.websocket = await connect(
@@ -83,3 +88,15 @@ class WebsocketUser(User):
         finally:
             if self.websocket:
                 await self.websocket.close()
+
+
+class _CertificatePrinterClientConnection(ClientConnection):  # type: ignore
+    """if debugging ssl certs, you can pass this to as create_connection parameter to connect()"""
+
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        super().connection_made(transport)
+        ssl_object = transport.get_extra_info("ssl_object")
+        if ssl_object is not None:
+            certificate = ssl_object.getpeercert(binary_form=True)
+            if certificate is not None:
+                print(DER_cert_to_PEM_cert(certificate))

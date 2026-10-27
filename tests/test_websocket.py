@@ -109,7 +109,9 @@ async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_
         async def on_start(self):
             async with self.client.get("http://localhost:8081/") as resp:
                 pass
-            await self.connect()
+            await self.connect(
+                additional_attributes={"foo": "bar"},
+            )
             message = cast(str, await self.websocket.recv())
             assert message.startswith('0{"sid"')
             await self.websocket.send("40")
@@ -129,5 +131,9 @@ async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_
     assert len(spans) == 2
     assert spans[0].name == "GET http://localhost:8081/"
     assert spans[1].name == "websocket.connect"
+    assert spans[1].attributes["foo"] == "bar"
+    assert received.qsize() == 1
+    assert received.get_nowait() == "40"
+
     assert received.qsize() == 1
     assert received.get_nowait() == "40"
