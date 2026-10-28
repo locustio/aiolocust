@@ -134,3 +134,38 @@ async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_
     assert spans[1].attributes["foo"] == "bar"
     assert received.qsize() == 1
     assert received.get_nowait() == "40"
+
+
+async def test_websocketuser_httpuser_combo_failures(websocket_server, http_server, span_exporter):
+    received = asyncio.Queue()
+
+    async def handler(ws):
+        # engineIO type handshake
+        await ws.send('0{"sid": "abcd123"}')
+        async for message in ws:
+            await received.put(message)
+            if message == "40":
+                await ws.send('40{"sid":"something"}')
+                await asyncio.sleep(0.01)
+                await ws.send("2")
+
+    url = await websocket_server(handler)
+
+    class BasicUser(WebsocketUser, HttpUser):
+        host = url
+
+        async def receive(self):
+            async for message in self.websocket:
+                pass
+
+        async def send(self):
+            async with self.client.get("http://localhost:8081/") as resp:
+                pass
+            assert False, "foo"
+
+    await user_loop(BasicUser())
+
+    spans = span_exporter.get_finished_spans()
+    assert len(spans) == 2
+    assert spans[0].name == "websocket.connect"
+    assert spans[1].name == "GET http://localhost:8081/"

@@ -10,6 +10,7 @@ from opentelemetry.util.types import AnyValue
 from websockets import ClientConnection, connect
 
 from aiolocust import User, tracer
+from aiolocust.runner import EXPECTED_ERRORS
 
 
 class WebsocketUser(User):
@@ -68,14 +69,27 @@ class WebsocketUser(User):
     @abstractmethod
     async def send(self) -> None: ...
 
+    # Wrappers made to ignore expected errors like assertions, response errors, etc. Like in Runner.user_loop()
+    async def _receive(self) -> None:
+        try:
+            await self.receive()
+        except EXPECTED_ERRORS:
+            pass
+
+    async def _send(self) -> None:
+        try:
+            await self.send()
+        except EXPECTED_ERRORS:
+            pass
+
     async def run(self) -> None:
         try:
             await self.on_start()
             assert self.websocket, "No websocket was created during on_start!"
             async with asyncio.TaskGroup() as group:
                 tasks = [
-                    group.create_task(self.receive()),
-                    group.create_task(self.send()),
+                    group.create_task(self._receive()),
+                    group.create_task(self._send()),
                 ]
                 if self.runner:
                     tasks.append(group.create_task(self.runner.wait_for_shutdown()))

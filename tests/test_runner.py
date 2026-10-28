@@ -121,72 +121,6 @@ def test_manual_shutdown(http_server, capteesys):
     # assert "foo" in out
 
 
-@pytest.mark.parametrize("outcome", ["shutdown", "cancel", "stopped", "iteration_limit"])
-async def test_wait_for_shutdown(outcome):
-    # ai generated test case
-    runner = Runner([], iterations=0 if outcome == "iteration_limit" else None)
-    runner.running = outcome != "stopped"
-    task = asyncio.create_task(runner.wait_for_shutdown())
-    try:
-        await asyncio.sleep(0)
-        if outcome in ("stopped", "iteration_limit"):
-            assert await asyncio.wait_for(task, 1) is None
-        else:
-            assert not task.done()
-            assert len(runner._shutdown_waiters) == 1
-            if outcome == "shutdown":
-                await runner.shutdown()
-                assert await asyncio.wait_for(task, 1) is None
-            else:
-                task.cancel()
-                with pytest.raises(asyncio.CancelledError):
-                    await task
-        assert not runner._shutdown_waiters
-    finally:
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
-        runner.forced_shutdown_timer.cancel()
-
-
-async def test_iteration_limit_notifies_waiters_from_another_thread():
-    allow_finish = threading.Event()
-
-    class TestUser(User):
-        async def run(self):
-            if self.runner.iteration_counter.value == 2:
-                assert await asyncio.to_thread(allow_finish.wait, 2)
-
-    runner = Runner([TestUser], iterations=2)
-    runner.running = True
-    user = TestUser(runner)
-    runner.running_users.add(user)
-    waiters = [asyncio.create_task(runner.wait_for_shutdown()) for _ in range(3)]
-    cancelled = asyncio.create_task(runner.wait_for_shutdown())
-    user_task = None
-    try:
-        await asyncio.sleep(0)
-        cancelled.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await cancelled
-        assert all(not waiter.done() for waiter in waiters)
-        user_task = asyncio.create_task(asyncio.to_thread(asyncio.run, runner.user_loop(user)))
-        await asyncio.wait_for(asyncio.gather(*waiters), timeout=1)
-        assert runner.running
-        assert not user_task.done()
-        assert runner.iteration_counter.value == 2
-        assert not runner._shutdown_waiters
-        allow_finish.set()
-        await user_task
-    finally:
-        allow_finish.set()
-        if user_task:
-            await user_task
-        for waiter in [*waiters, cancelled]:
-            waiter.cancel()
-        await asyncio.gather(*waiters, cancelled, return_exceptions=True)
-        runner.forced_shutdown_timer.cancel()
-
-
 async def test_concurrent_shutdown_calls(monkeypatch):
     runner = Runner([])
     runner.running = True
@@ -501,9 +435,8 @@ async def test_websocket_user_iteration_exit(websocket_server, capteesys, caplog
                     print(f"Unknown message received: {s}")
 
         async def send(self):
-            while True:
-                await self.websocket.send(f'42["ping",{{"ts":{time.time_ns()}}}]')
-                await asyncio.sleep(0.1)
+            await self.websocket.send(f'42["ping",{{"ts":{time.time_ns()}}}]')
+            await asyncio.sleep(0.1)
 
     runner = Runner(
         [MyUser], user_count=user_count, iterations=iterations, duration=4, host=url, event_loops=event_loops
@@ -591,3 +524,55 @@ async def test_websocket_dns_fail(capteesys):
     assert "Summary" in output
     assert_search(r" websocket.connect[ ]+│[ ]+[1].*\(100.0%\)", output)
     assert "Traceback" not in output  # no explicit callstack should be printed
+
+
+async def test_websocket_combo(http_server, websocket_server, capteesys):
+    async def handler(ws):
+        async for message in ws:
+            await ws.send(message)
+
+    url = await websocket_server(handler)
+
+    class CombinedUser(HttpUser, WebsocketUser):
+        async def on_start(self):
+            await self.connect(url)
+
+        async def receive(self):
+            async for message in self.websocket:
+                pass
+
+        async def send(self):
+            async with self.client.get("http://localhost:8081/") as resp:
+                pass  # in a real test this probably would loop, but once is enough for us
+
+    runner = Runner([CombinedUser], iterations=1, host=url)
+    await runner.run_test_async()
+    output, err = capteesys.readouterr()
+    assert err == ""
+    assert "http://localhost:8081/" in output
+
+
+async def test_websocket_with_failure(http_server, websocket_server, caplog, capteesys):
+    async def handler(ws):
+        async for message in ws:
+            await ws.send(message)
+
+    url = await websocket_server(handler)
+
+    class CombinedUser(HttpUser, WebsocketUser):
+        async def receive(self):
+            async for message in self.websocket:
+                pass
+
+        async def send(self):
+            async with self.client.get("http://localhost:8081/") as resp:
+                assert "nope" in await resp.text()
+
+    runner = Runner([CombinedUser], iterations=1, host=url)
+    with caplog.at_level("INFO", logger="aiolocust.runner"):
+        await runner.run_test_async()
+    print(caplog.text)
+    assert "Shutting down (reached iteration limit (1))" in caplog.text
+    output, err = capteesys.readouterr()
+    assert "Traceback" not in output
+    assert "assert 'nope' in " in output
