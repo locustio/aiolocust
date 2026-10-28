@@ -25,7 +25,6 @@ IGNORED_HEADERS = os.getenv(
 ).split(",")
 if extra_headers := os.getenv("LOCUST_EXTRA_IGNORED_HEADERS"):
     IGNORED_HEADERS.extend(extra_headers.lower().split(","))  # headers are case-insensitive
-print(IGNORED_HEADERS)
 
 IGNORED_METHODS = os.getenv("LOCUST_IGNORED_METHODS", "options").split(",")
 
