@@ -16,7 +16,7 @@ from aiolocust.users.http import HttpUser, LocustClientSession
 from aiolocust.users.websocket import WebsocketUser
 
 
-def test_basic(http_server, capteesys):  # noqa: ARG001
+def test_basic(http_server, capteesys):
     class TestUser(HttpUser):
         async def run(self):
             async with self.client.get("http://localhost:8081/") as resp:
@@ -43,7 +43,7 @@ def test_basic(http_server, capteesys):  # noqa: ARG001
     assert "bar" not in out
 
 
-def test_unhandled_exception(http_server, capteesys):  # noqa: ARG001
+def test_unhandled_exception(http_server, capteesys):
     class TestUser(HttpUser):
         async def run(self):
             raise Exception("an error")
@@ -55,7 +55,7 @@ def test_unhandled_exception(http_server, capteesys):  # noqa: ARG001
     assert_search(r"1 .* an error", out)
 
 
-def test_timeout_catching(http_server, capteesys):  # noqa: ARG001
+def test_timeout_catching(http_server, capteesys):
     class TestUser(HttpUser):
         @asynccontextmanager
         async def cm(self):
@@ -79,7 +79,7 @@ def test_timeout_catching(http_server, capteesys):  # noqa: ARG001
     assert_search(r"\d .* TimeoutError", out)
 
 
-def test_w_otel(http_server, capteesys):  # noqa: ARG001
+def test_w_otel(http_server, capteesys):
     class TestUser(HttpUser):
         async def run(self):
             async with self.client.get("http://localhost:8081/") as resp:
@@ -102,7 +102,7 @@ def test_w_otel(http_server, capteesys):  # noqa: ARG001
     assert "bar" not in out
 
 
-def test_manual_shutdown(http_server, capteesys):  # noqa: ARG001
+def test_manual_shutdown(http_server, capteesys):
     class TestUser(HttpUser):
         async def run(self):
             async with self.client.get("http://localhost:8081/") as resp:
@@ -193,7 +193,7 @@ async def test_concurrent_shutdown_calls(monkeypatch):
     shutdown_event_calls = 0
     allow_shutdown = asyncio.Event()
 
-    async def fire_shutdown_event(runner):  # noqa: ARG001
+    async def fire_shutdown_event(runner):
         nonlocal shutdown_event_calls
         shutdown_event_calls += 1
         await allow_shutdown.wait()
@@ -214,7 +214,7 @@ async def test_concurrent_shutdown_calls(monkeypatch):
         runner.forced_shutdown_timer.cancel()
 
 
-def test_iterations(http_server, capteesys):  # noqa: ARG001
+def test_iterations(http_server, capteesys):
     class TestUser(HttpUser):
         async def run(self):
             async with self.client.get("http://localhost:8081/") as resp:
@@ -262,14 +262,14 @@ def test_desired_user_count():
     assert desired_user_count([Stage(0, 100), Stage(1, 100)], 0.001) == 100  # correctly handles instant ramp up
 
 
-def test_current_user_count_gauge(http_server, monkeypatch):  # noqa: ARG001
+def test_current_user_count_gauge(http_server, monkeypatch):
     class TestUser(HttpUser):
         async def run(self):
             await asyncio.sleep(0.01)
 
     gauge_values = []
 
-    def _record_gauge(value, attributes=None, context=None):  # noqa: ARG001
+    def _record_gauge(value, attributes=None, context=None):
         gauge_values.append(value)
 
     monkeypatch.setattr("aiolocust.runner.current_users_gauge.set", _record_gauge)
@@ -279,7 +279,7 @@ def test_current_user_count_gauge(http_server, monkeypatch):  # noqa: ARG001
     assert max(gauge_values) == 2
 
 
-def test_base_url_gets_removed_from_request_name(http_server, capteesys):  # noqa: ARG001
+def test_base_url_gets_removed_from_request_name(http_server, capteesys):
     class TestUser(HttpUser):
         async def run(self):
             async with self.client.get("/") as resp:
@@ -293,7 +293,7 @@ def test_base_url_gets_removed_from_request_name(http_server, capteesys):  # noq
     assert "http://localhost:8081" not in out
 
 
-def test_duration_shorter_than_rampup(http_server, capteesys):  # noqa: ARG001
+def test_duration_shorter_than_rampup(http_server, capteesys):
     class TestUser(HttpUser):
         async def run(self):
             async with self.client.get("/") as resp:
@@ -312,7 +312,7 @@ def test_duration_shorter_than_rampup(http_server, capteesys):  # noqa: ARG001
     assert "http://localhost:8081" not in out
 
 
-def test_rate_limiting(http_server, capteesys):  # noqa: ARG001
+def test_rate_limiting(http_server, capteesys):
     class TestUser(HttpUser):
         @rate_limit(10)
         async def run(self):
@@ -334,7 +334,7 @@ def test_rate_limiting(http_server, capteesys):  # noqa: ARG001
     assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
 
 
-def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):  # noqa: ARG001
+def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):
     class TestUser(HttpUser):
         @rate_limit(1)
         async def run(self):

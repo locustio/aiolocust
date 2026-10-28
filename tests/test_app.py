@@ -25,7 +25,7 @@ def invoke(tmp_path, locustfile: str, *args, **kwargs):
     return result
 
 
-def test_main(http_server, tmp_path):  # noqa: ARG001
+def test_main(http_server, tmp_path):
     result = invoke(
         tmp_path,
         """
@@ -46,7 +46,7 @@ class MyUser(HttpUser):
     assert result.exit_code == 0
 
 
-def test_run_method(http_server, tmp_path):  # noqa: ARG001
+def test_run_method(http_server, tmp_path):
     result = invoke(
         tmp_path,
         """
@@ -65,7 +65,7 @@ async def run(user):
     assert result.exit_code == 0
 
 
-def test_on_start_and_shutdown(tmp_path):  # noqa: ARG001
+def test_on_start_and_shutdown(tmp_path):
     try:
         result = invoke(
             tmp_path,
@@ -119,7 +119,7 @@ class MyUser(HttpUser):
     assert result.exit_code == 0
 
 
-def test_shutdown_and_exit_code(tmp_path):  # noqa: ARG001
+def test_shutdown_and_exit_code(tmp_path):
     try:
         result = invoke(
             tmp_path,
@@ -150,7 +150,7 @@ class MyUser(HttpUser):
     assert result.exit_code == 42
 
 
-def test_html_report(http_server, tmp_path):  # noqa: ARG001
+def test_html_report(http_server, tmp_path):
     result = invoke(
         tmp_path,
         """
@@ -177,7 +177,7 @@ async def run(user):
     assert "Total" in html
 
 
-def test_json_report(http_server, tmp_path):  # noqa: ARG001
+def test_json_report(http_server, tmp_path):
     result = invoke(
         tmp_path,
         """
@@ -244,7 +244,7 @@ from .helper import run
         assert result.exit_code == 0
 
 
-def test_config(http_server, tmp_path):  # noqa: ARG001
+def test_config(http_server, tmp_path):
     result = invoke(
         tmp_path,
         """

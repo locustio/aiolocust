@@ -88,7 +88,7 @@ async def test_websocket_user_bad_host(span_exporter):
     assert spans[0].status.status_code == StatusCode.ERROR
 
 
-async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_exporter):  # noqa: ARG001
+async def test_websocketuser_httpuser_combo(websocket_server, http_server, span_exporter):
     received = asyncio.Queue()
 
     async def handler(ws):

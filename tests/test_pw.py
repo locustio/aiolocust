@@ -10,7 +10,7 @@ except ImportError:
 
 
 @pytest.mark.skipif(condition=PlaywrightUser is object, reason="Playwright is not installed")
-def test_runner(http_server, capteesys):  # noqa: ARG001
+def test_runner(http_server, capteesys):
     class TestUser(PlaywrightUser):  # pyright: ignore
         async def run(self):
             await self.page.goto("https://www.microsoft.com/")

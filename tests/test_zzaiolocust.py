@@ -56,7 +56,7 @@ def test_otel_log_filter_for_weakref():
     assert getattr(record, "ordinary_attribute") == "kept"
 
 
-async def test_websocket_example(websocket_server, http_server):  # noqa: ARG001
+async def test_websocket_example(websocket_server, http_server):
     received = asyncio.Queue()
 
     async def handler(ws):
@@ -100,7 +100,7 @@ async def test_websocket_example(websocket_server, http_server):  # noqa: ARG001
         assert not "unhandled error" in output
 
 
-async def test_websocket_example_concurrent_users(websocket_server, http_server):  # noqa: ARG001
+async def test_websocket_example_concurrent_users(websocket_server, http_server):
     received = asyncio.Queue()
 
     async def handler(ws):
@@ -144,7 +144,7 @@ async def test_websocket_example_concurrent_users(websocket_server, http_server)
         assert not "unhandled error" in output
 
 
-async def test_websocket_example_bad_host(http_server):  # noqa: ARG001
+async def test_websocket_example_bad_host(http_server):
     duration = 1 + WINDOWS_DELAY * 5
     proc = await exec(
         f"aiolocust examples/websocket_ex.py -d {duration} -i 1 -H ws://localhost:6666",
@@ -195,7 +195,7 @@ async def test_no_locustfile():
 
 
 @unittest.skipIf(os.name == "nt", reason="otel instrumentation seems to have some issues with freethreading on Windows")
-async def test_otel_autoinstrumentation(http_server):  # noqa: ARG001
+async def test_otel_autoinstrumentation(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
 
@@ -244,7 +244,7 @@ async def run(self):
             assert await proc.wait() == 0
 
 
-async def test_loglevel(http_server):  # noqa: ARG001
+async def test_loglevel(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
 
@@ -295,7 +295,7 @@ async def run(user):
             assert await proc.wait() == 0
 
 
-async def test_loglevel_debug(http_server):  # noqa: ARG001
+async def test_loglevel_debug(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
 
@@ -326,7 +326,7 @@ async def run(user):
             assert "OTLP exporter for 'http/protobuf' is not available" in err
 
 
-async def test_host_param(http_server):  # noqa: ARG001
+async def test_host_param(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
 
@@ -358,7 +358,7 @@ async def run(user):
             assert await proc.wait() == 0
 
 
-async def test_sigint(http_server):  # noqa: ARG001
+async def test_sigint(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
 
@@ -395,7 +395,7 @@ async def run(user):
             assert "Shutting down (got SIGINT/CTRL-C)" in err
 
 
-async def test_sigint_doesnt_wait_for_otel_to_connect(http_server):  # noqa: ARG001
+async def test_sigint_doesnt_wait_for_otel_to_connect(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
 
@@ -437,7 +437,7 @@ async def run(user):
             assert "Shutting down (got SIGINT/CTRL-C)" in err
 
 
-async def test_unhandled_error_logging(http_server):  # noqa: ARG001
+async def test_unhandled_error_logging(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")
 
@@ -473,7 +473,7 @@ async def run(user):
             assert_search(r"[12] .* an error", output)
 
 
-async def test_config_and_stages(http_server):  # noqa: ARG001
+async def test_config_and_stages(http_server):
     with TemporaryDirectory() as tmp_dir:
         with open(os.path.join(tmp_dir, "my_script.py"), "w") as tempfile:
             tempfile.write("""
@@ -518,7 +518,7 @@ async def run(user):
             assert_search(r"[2-9]\.[0-9]*/s", output)  # last one
 
 
-async def test_user_forwards_params_to_session_and_handles_timeouts(http_server):  # noqa: ARG001
+async def test_user_forwards_params_to_session_and_handles_timeouts(http_server):
     proc = await exec(
         "aiolocust examples/advanced_user_class_settings.py -i 3",
     )
@@ -570,7 +570,7 @@ async def run(user):
             assert await proc.wait() == 124
 
 
-async def test_rate_limiting(http_server):  # noqa: ARG001
+async def test_rate_limiting(http_server):
 
     proc = await exec(
         f"aiolocust examples/rate_limit.py -d 4 -u 10 --config {quote('{"stats_print_interval": 1}')}",
@@ -628,7 +628,7 @@ async def run(user):
             assert "Shutting down (reached iteration limit" in err
 
 
-async def test_iteration_limit_log_message_with_ws(websocket_server, http_server):  # noqa: ARG001
+async def test_iteration_limit_log_message_with_ws(websocket_server, http_server):
     received = asyncio.Queue()
 
     async def handler(ws):
