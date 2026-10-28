@@ -638,6 +638,8 @@ async def test_iteration_limit_log_message_with_ws(websocket_server, http_server
             await received.put(message)
             if message == "40":
                 await ws.send("40")
+                await asyncio.sleep(1)
+                await ws.send("shutdown")
 
     url = await websocket_server(handler)
 

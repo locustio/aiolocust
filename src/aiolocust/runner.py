@@ -242,8 +242,6 @@ class Runner:
     async def wait_for_shutdown(self) -> None:
         waiter = asyncio.get_running_loop().create_future()
         with self._shutdown_lock:
-            if not self.running or self.iteration_counter.value >= self.iteration_counter.limit:
-                return
             self._shutdown_waiters.add(waiter)
 
         try:
@@ -283,9 +281,8 @@ class Runner:
                     self.running_users.remove(user_instance)
                     if not self.running_users:
                         await self.shutdown(f"reached iteration limit ({self.iteration_counter.value})")
-                    break
-                if self.iteration_counter.value >= self.iteration_counter.limit:
                     self._notify_shutdown_waiters()
+                    break
                 try:
                     await user_instance.run()
                 except EXPECTED_ERRORS:

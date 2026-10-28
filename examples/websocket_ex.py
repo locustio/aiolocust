@@ -39,6 +39,8 @@ class MyUser(WebsocketUser, HttpUser):
                 await self.websocket.send("3")  # heartbeat response
             elif s.startswith("42["):
                 pass
+            elif s == "shutdown":
+                return
             else:
                 print(f"Unknown message received: {s}")
 
