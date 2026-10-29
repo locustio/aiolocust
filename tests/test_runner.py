@@ -174,64 +174,40 @@ def test_iterations(http_server, capteesys):
 
 def test_desired_user_count():
     stages = [
-        Stage(duration=2, target=2),
-        Stage(duration=2, target=2, reset_stats=True),
-        Stage(duration=2, target=4),
-        Stage(duration=2, target=0, reset_stats=True),
-        Stage(duration=2, target=10),
+        Stage(duration=1, target=2),
+        Stage(duration=1, target=2, reset_stats=True),
+        Stage(duration=1, target=4),
+        Stage(duration=1, target=0, reset_stats=True),
+        Stage(duration=1, target=10),
     ]
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 0, 0)
-    assert u == 0
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 0.1, s)
-    assert u == 1  # using math.ceil to avoid 0 users at the start of the test
-    assert s == 0
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 2, s)
-    assert u == 2
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 3, s)
-    assert u == 2  # no change in second stage
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 4, s)
-    assert u == 2
-    assert s == 1
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 5, s)
-    assert u == 3  # halfway through third stage
-    assert s == 2
-    assert r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 6, s)
-    assert u == 4
-    assert s == 2
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 7, s)
-    assert u == 2  # halfway through ramp down stage
-    assert s == 3
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 8, s)
-    assert u == 0  # end of ramp down stage
-    assert s == 3
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 9, s)
-    assert u == 5  # can ramp up again after ramping down to 0
-    assert s == 4
-    assert r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 9.3, s)
-    assert u == 7  # floats are nice
-    assert s == 4
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 10, s)
-    assert u == 10
-    assert s == 4
-    assert not r
-    u, s, r = desired_user_count_stage_index_reset_stats(stages, 999, s)
-    assert u is None
-    assert s == -1  # not really relevant, but why not check it...
-    assert not r
+    # elapsed, expected user count, expected stage index, expected reset_stats
+    expected_results = [
+        (0, 0, 0, False),
+        (0.1, 1, 0, False),  # ceil avoids 0 users at the start
+        # user count in the second stage is flat
+        (1, 2, 0, False),
+        (1.5, 2, 1, False),
+        (2, 2, 1, False),
+        # halfway through the third stage, and we just finished a reset_stats=True stage:
+        (2.5, 3, 2, True),
+        (3, 4, 2, False),
+        # halfway through ramp down:
+        (3.5, 2, 3, False),
+        (4, 0, 3, False),
+        # ramp up again after reaching 0, and we just finished a reset_stats=True stage:
+        (4.5, 5, 4, True),
+        (4.65, 7, 4, False),
+        (5, 10, 4, False),
+        (5.1, None, -1, False),  # finished
+    ]
+    current_stage_index = 0
+    for elapsed, expected_users, expected_stage_index, reset_stats in expected_results:
+        result = desired_user_count_stage_index_reset_stats(stages, elapsed, current_stage_index)
+        assert result == (expected_users, expected_stage_index, reset_stats)
+        current_stage_index = result[1]
 
-    u, s, r = desired_user_count_stage_index_reset_stats([Stage(0, 100), Stage(1, 100)], 0.001, 0)
-    assert u == 100  # correctly handles instant ramp up
+    # fast rampup
+    assert desired_user_count_stage_index_reset_stats([Stage(0, 100, True), Stage(1, 100)], 0.001, 0) == (100, 1, True)
 
 
 def test_current_user_count_gauge(http_server, monkeypatch):
