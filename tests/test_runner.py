@@ -11,7 +11,7 @@ from opentelemetry import trace
 from utils import assert_search
 
 from aiolocust import User, rate_limit, tracer
-from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count
+from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count_stage_index_reset_stats
 from aiolocust.users.http import HttpUser, LocustClientSession
 from aiolocust.users.websocket import WebsocketUser
 
@@ -175,25 +175,63 @@ def test_iterations(http_server, capteesys):
 def test_desired_user_count():
     stages = [
         Stage(duration=2, target=2),
-        Stage(duration=2, target=2),
+        Stage(duration=2, target=2, reset_stats=True),
         Stage(duration=2, target=4),
-        Stage(duration=2, target=0),
+        Stage(duration=2, target=0, reset_stats=True),
         Stage(duration=2, target=10),
     ]
-    assert desired_user_count(stages, 0) == 0
-    assert desired_user_count(stages, 0.1) == 1  # using math.ceil to avoid 0 users at the start of the test
-    assert desired_user_count(stages, 2) == 2
-    assert desired_user_count(stages, 3) == 2  # no change in second stage
-    assert desired_user_count(stages, 4) == 2
-    assert desired_user_count(stages, 5) == 3  # halfway through third stage
-    assert desired_user_count(stages, 6) == 4
-    assert desired_user_count(stages, 7) == 2  # halfway through ramp down stage
-    assert desired_user_count(stages, 8) == 0  # end of ramp down stage
-    assert desired_user_count(stages, 9) == 5  # can ramp up again after ramping down to 0
-    assert desired_user_count(stages, 9.3) == 7  # floats are nice
-    assert desired_user_count(stages, 10) == 10
-    assert desired_user_count(stages, 999) is None
-    assert desired_user_count([Stage(0, 100), Stage(1, 100)], 0.001) == 100  # correctly handles instant ramp up
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 0, 0)
+    assert u == 0
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 0.1, s)
+    assert u == 1  # using math.ceil to avoid 0 users at the start of the test
+    assert s == 0
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 2, s)
+    assert u == 2
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 3, s)
+    assert u == 2  # no change in second stage
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 4, s)
+    assert u == 2
+    assert s == 1
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 5, s)
+    assert u == 3  # halfway through third stage
+    assert s == 2
+    assert r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 6, s)
+    assert u == 4
+    assert s == 2
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 7, s)
+    assert u == 2  # halfway through ramp down stage
+    assert s == 3
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 8, s)
+    assert u == 0  # end of ramp down stage
+    assert s == 3
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 9, s)
+    assert u == 5  # can ramp up again after ramping down to 0
+    assert s == 4
+    assert r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 9.3, s)
+    assert u == 7  # floats are nice
+    assert s == 4
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 10, s)
+    assert u == 10
+    assert s == 4
+    assert not r
+    u, s, r = desired_user_count_stage_index_reset_stats(stages, 999, s)
+    assert u is None
+    assert s == -1  # not really relevant, but why not check it...
+    assert not r
+
+    u, s, r = desired_user_count_stage_index_reset_stats([Stage(0, 100), Stage(1, 100)], 0.001, 0)
+    assert u == 100  # correctly handles instant ramp up
 
 
 def test_current_user_count_gauge(http_server, monkeypatch):
