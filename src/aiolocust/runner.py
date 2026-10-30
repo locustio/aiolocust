@@ -369,7 +369,8 @@ class Runner:
                 await self.shutdown(f"target duration elapsed after {elapsed:.2f}s")
                 break
             if reset_stats:
-                pass
+                logger.info("Resetting stats")
+                self.sf = stats.StatsFormatter(time.time())
 
             change = new_user_count - self.current_user_count
             if change > 0:

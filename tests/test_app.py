@@ -260,6 +260,30 @@ async def run(user):
     assert result.exit_code == 0
 
 
+def test_config_reset_stats(http_server, tmp_path):
+    result = invoke(
+        tmp_path,
+        """
+import asyncio
+from aiolocust import HttpUser
+
+async def run(user):
+    async with user.client.get("http://localhost:8081/") as resp:
+        pass
+    await asyncio.sleep(1)
+""",
+        "--config",
+        '{ "stages": [{ "duration": 3, "target": 1, "reset_stats": true}, {"duration": 1, "target": 10 }] }',
+    )
+    assert "http://localhost:" in result.output
+    assert "0 (0.0%)" in result.output
+    match = re.findall(r"(\d*\.?\d+)/s $", result.output, flags=re.MULTILINE)[-1]
+    assert match is not None
+    final_rate_from_log = float(match)
+    assert final_rate_from_log > 9.0  # rate during rampup is low, so ensure it is not calculated as part of the total
+    assert result.exit_code == 0
+
+
 def test_multiple_user_class_detection(tmp_path):
     result = invoke(
         tmp_path,

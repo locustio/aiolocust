@@ -674,3 +674,34 @@ async def test_iteration_limit_log_message_with_ws(websocket_server, http_server
         except asyncio.QueueEmpty:
             raise Exception("WS server received no messages!")
         assert not "unhandled error" in output
+
+
+async def test_reset_stats():
+    with TemporaryDirectory() as tmp_dir:
+        with open(os.path.join(tmp_dir, "my_script.py"), "w") as tempfile:
+            tempfile.write("""
+import asyncio
+from aiolocust import otel
+
+async def run(user):
+    await asyncio.sleep(0.999)
+    otel.duration_histogram.record(0, attributes={"name": "foo"})
+""")
+        proc = await exec(
+            f"aiolocust {tempfile.name} -u 10 -d 3  -r 5 --reset-stats --config " + "'{\"stats_print_interval\":0.1}'",
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=9)
+        except TimeoutError:
+            proc.kill()
+            stdout, stderr = await proc.communicate()
+            output = stdout.decode(errors="replace")
+            print(output)
+            raise AssertionError("process never terminated") from None
+        else:
+            err = stderr.decode(errors="replace")
+            print(err)
+            output = stdout.decode(errors="replace")
+            print(output)
+            assert "Shutting down (target duration elapsed" in err
+            assert_search(r" foo .* (?:8|9|10|11) .* \(0.0%\)", output)
