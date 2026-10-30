@@ -16,6 +16,7 @@ users: int = 1
 duration: int | None = None
 rate: float | None = None
 iterations: int | None = None
+reset_stats: bool = False
 host: str | None = None
 instrument: bool = False
 log_level: LogLevel = LogLevel.info

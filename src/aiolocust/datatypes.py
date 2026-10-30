@@ -53,6 +53,7 @@ class RequestEntry:
 class Stage:
     duration: float
     target: int
+    reset_stats: bool = False
 
 
 class SafeCounter:

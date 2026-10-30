@@ -8,10 +8,11 @@ from typing import cast
 import aiohttp
 import pytest
 from opentelemetry import trace
+from test_zzaiolocust import WINDOWS_DELAY
 from utils import assert_search
 
 from aiolocust import User, rate_limit, tracer
-from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count
+from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count_stage_index_reset_stats
 from aiolocust.users.http import HttpUser, LocustClientSession
 from aiolocust.users.websocket import WebsocketUser
 
@@ -172,28 +173,69 @@ def test_iterations(http_server, capteesys):
     assert_search(r"30 .* assert 'foo' in 'OK'", out)
 
 
-def test_desired_user_count():
+def test_desired_user_count_stage_index_reset_stats():
     stages = [
-        Stage(duration=2, target=2),
-        Stage(duration=2, target=2),
-        Stage(duration=2, target=4),
-        Stage(duration=2, target=0),
-        Stage(duration=2, target=10),
+        Stage(duration=1, target=2),
+        Stage(duration=1, target=2, reset_stats=True),
+        Stage(duration=1, target=4),
+        Stage(duration=1, target=0, reset_stats=True),
+        Stage(duration=1, target=10),
     ]
-    assert desired_user_count(stages, 0) == 0
-    assert desired_user_count(stages, 0.1) == 1  # using math.ceil to avoid 0 users at the start of the test
-    assert desired_user_count(stages, 2) == 2
-    assert desired_user_count(stages, 3) == 2  # no change in second stage
-    assert desired_user_count(stages, 4) == 2
-    assert desired_user_count(stages, 5) == 3  # halfway through third stage
-    assert desired_user_count(stages, 6) == 4
-    assert desired_user_count(stages, 7) == 2  # halfway through ramp down stage
-    assert desired_user_count(stages, 8) == 0  # end of ramp down stage
-    assert desired_user_count(stages, 9) == 5  # can ramp up again after ramping down to 0
-    assert desired_user_count(stages, 9.3) == 7  # floats are nice
-    assert desired_user_count(stages, 10) == 10
-    assert desired_user_count(stages, 999) is None
-    assert desired_user_count([Stage(0, 100), Stage(1, 100)], 0.001) == 100  # correctly handles instant ramp up
+    # elapsed, expected user count, expected stage index, expected reset_stats
+    expected_results = [
+        (0, 0, 0, False),
+        (0.1, 1, 0, False),  # ceil avoids 0 users at the start
+        # user count in the second stage is flat
+        (1, 2, 0, False),
+        (1.5, 2, 1, False),
+        (2, 2, 1, False),
+        # halfway through the third stage, and we just finished a reset_stats=True stage:
+        (2.5, 3, 2, True),
+        (3, 4, 2, False),
+        # halfway through ramp down:
+        (3.5, 2, 3, False),
+        (4, 0, 3, False),
+        # ramp up again after reaching 0, and we just finished a reset_stats=True stage:
+        (4.5, 5, 4, True),
+        (4.65, 7, 4, False),
+        (5, 10, 4, False),
+        (5.1, None, -1, False),  # finished
+    ]
+    current_stage_index = 0
+    for elapsed, expected_users, expected_stage_index, reset_stats in expected_results:
+        result = desired_user_count_stage_index_reset_stats(stages, elapsed, current_stage_index)
+        assert result == (expected_users, expected_stage_index, reset_stats)
+        current_stage_index = result[1]
+
+    # fast rampup
+    assert desired_user_count_stage_index_reset_stats([Stage(0, 100, True), Stage(1, 100)], 0.001, 0) == (100, 1, True)
+
+
+def test_reset_stats(http_server, caplog, capteesys):
+    class TestUser(HttpUser):
+        async def run(self):
+            await asyncio.sleep(0.99)  # aim for ~1 req/s
+            async with self.client.get("/") as resp:
+                pass
+
+    with caplog.at_level("INFO", logger="aiolocust.runner"):
+        r = Runner([TestUser], host="http://localhost:8081", user_count=10, duration=4, rate=5, reset_stats=True)
+        r.stats_print_interval = 0.5
+        r.run_test()
+
+    # assert "Resetting" in caplog.text
+    out, err = capteesys.readouterr()
+    assert "Summary" in out
+    if WINDOWS_DELAY:
+        assert_search(r" / .* (?:18|19|20|21) .* \(0.0%\)", out)
+    else:
+        assert_search(r" / .* (?:20|21) .* \(0.0%\)", out)
+    highest_rate = 0.0
+    for line in out.splitlines():
+        match = re.search(r"(\d*\.?\d+)/s $", line)
+        if match:
+            rate = float(match.group(1))
+            highest_rate = max(highest_rate, rate)
 
 
 def test_current_user_count_gauge(http_server, monkeypatch):

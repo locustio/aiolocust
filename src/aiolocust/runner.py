@@ -72,19 +72,30 @@ original_sigint_handler = signal.getsignal(signal.SIGINT)
 original_sigterm_handler = signal.getsignal(signal.SIGTERM)
 
 
-def desired_user_count(stages: list[Stage], elapsed: float) -> int | None:
+def desired_user_count_stage_index_reset_stats(
+    stages: list[Stage], elapsed: float, current_stage_index: int
+) -> tuple[int | None, int, bool]:
     total_time = 0.0
     previous_user_count = 0
-    for stage in stages:
+    reset_stats = False
+    for i in range(len(stages)):
+        stage = stages[i]
         total_time += stage.duration
+        if i > current_stage_index:
+            reset_stats = reset_stats or stages[i - 1].reset_stats  # have we passed a stage that asked for a reset?
         if elapsed <= total_time:
             time_left_in_stage = total_time - elapsed
-            return math.ceil(
-                previous_user_count + (stage.target - previous_user_count) * (1 - time_left_in_stage / stage.duration)
+            return (
+                math.ceil(
+                    previous_user_count
+                    + (stage.target - previous_user_count) * (1 - time_left_in_stage / stage.duration)
+                ),
+                i,
+                reset_stats,
             )
         previous_user_count = stage.target
 
-    return None
+    return None, -1, False
 
 
 def shutdown_timeout() -> None:
@@ -134,6 +145,7 @@ class Runner:
         duration: int | None = None,
         rate: float | None = None,
         iterations: int | None = None,
+        reset_stats: bool = False,
         host: str | None = None,
         config: dict[str, Any] | None = None,
         event_loops: int | None = None,
@@ -169,16 +181,16 @@ class Runner:
             ramp_up_time = user_count / rate if rate else 0
             if duration:
                 if ramp_up_time >= duration:
-                    self.stages = [Stage(duration, user_count)]
+                    self.stages = [Stage(duration, user_count, False)]
                 else:
                     self.stages = [
-                        Stage(ramp_up_time, user_count),
-                        Stage(duration - ramp_up_time, user_count),
+                        Stage(ramp_up_time, user_count, reset_stats),
+                        Stage(duration - ramp_up_time, user_count, False),
                     ]
             else:
                 self.stages = [
-                    Stage(ramp_up_time, user_count),
-                    Stage(99999999, user_count),
+                    Stage(ramp_up_time, user_count, reset_stats),
+                    Stage(99999999, user_count, False),
                 ]
             logger.debug(f"Stages: {self.stages}")
 
@@ -346,14 +358,20 @@ class Runner:
         self.sf = stats.StatsFormatter(self.start_time)
         self.current_user_count = 0
         current_users_gauge.set(self.current_user_count)
-
+        stage_index = 0
         while self.running:
             await asyncio.sleep(0.01)
             elapsed = time.time() - self.start_time
-            new_user_count = desired_user_count(self.stages, elapsed)
+            new_user_count, stage_index, reset_stats = desired_user_count_stage_index_reset_stats(
+                self.stages, elapsed, stage_index
+            )
             if new_user_count is None:
                 await self.shutdown(f"target duration elapsed after {elapsed:.2f}s")
                 break
+            if reset_stats:
+                logger.info("Resetting stats")
+                self.sf = stats.StatsFormatter(time.time())
+
             change = new_user_count - self.current_user_count
             if change > 0:
                 for i in range(change):

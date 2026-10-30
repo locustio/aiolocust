@@ -65,6 +65,7 @@ def main(
     iterations: Annotated[
         int | None, typer.Option("-i", "--iterations", help="Max total number of iterations to run")
     ] = None,
+    reset_stats: Annotated[bool, typer.Option("--reset-stats", help="Reset stats after ramp up")] = False,
     host: Annotated[str | None, typer.Option("-H", "--host", help="Base URL to target")] = None,
     instrument: Annotated[
         bool,
@@ -228,6 +229,7 @@ def main(
             duration=duration,
             rate=rate,
             iterations=iterations,
+            reset_stats=reset_stats,
             host=host,
             config=config,
             event_loops=event_loops,
