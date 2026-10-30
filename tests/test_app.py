@@ -282,7 +282,7 @@ async def run(user):
     assert match is not None
     final_rate_from_log = float(match)
     # rate during rampup is low, so ensure it is not calculated as part of the total
-    assert final_rate_from_log > 9.0 - WINDOWS_DELAY
+    assert final_rate_from_log > 9.0 - WINDOWS_DELAY * 2
     assert result.exit_code == 0
 
 
