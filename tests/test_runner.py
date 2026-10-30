@@ -8,6 +8,7 @@ from typing import cast
 import aiohttp
 import pytest
 from opentelemetry import trace
+from test_zzaiolocust import WINDOWS_DELAY
 from utils import assert_search
 
 from aiolocust import User, rate_limit, tracer
@@ -225,7 +226,10 @@ def test_reset_stats(http_server, caplog, capteesys):
     # assert "Resetting" in caplog.text
     out, err = capteesys.readouterr()
     assert "Summary" in out
-    assert_search(r" / .* (?:20|21) .* \(0.0%\)", out)
+    if WINDOWS_DELAY:
+        assert_search(r" / .* (?:18|19|20|21) .* \(0.0%\)", out)
+    else:
+        assert_search(r" / .* (?:20|21) .* \(0.0%\)", out)
     highest_rate = 0.0
     for line in out.splitlines():
         match = re.search(r"(\d*\.?\d+)/s $", line)

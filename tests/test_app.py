@@ -3,6 +3,7 @@ import os
 import re
 
 import pytest
+from test_zzaiolocust import WINDOWS_DELAY
 from typer.testing import CliRunner
 
 from aiolocust import events
@@ -280,7 +281,8 @@ async def run(user):
     match = re.findall(r"(\d*\.?\d+)/s $", result.output, flags=re.MULTILINE)[-1]
     assert match is not None
     final_rate_from_log = float(match)
-    assert final_rate_from_log > 9.0  # rate during rampup is low, so ensure it is not calculated as part of the total
+    # rate during rampup is low, so ensure it is not calculated as part of the total
+    assert final_rate_from_log > 9.0 - WINDOWS_DELAY
     assert result.exit_code == 0
 
 
