@@ -89,7 +89,7 @@ def main(
         typer.Option(
             metavar="JSON",
             parser=load_config,
-            help='JSON string or path to JSON file, e.g. \n\n{"stages":[{"duration":10,"target":10},{"duration":5,"target":0}]}',
+            help='JSON string or path to JSON file, e.g. \n\n{"stages":[{"duration":10,"target":10,"reset_stats":true},{"duration":5,"target":0}]}',
         ),
     ] = None,
     event_loops: Annotated[
