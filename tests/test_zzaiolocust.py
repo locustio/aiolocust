@@ -244,6 +244,48 @@ async def run(self):
             assert await proc.wait() == 0
 
 
+@unittest.skipIf(os.name == "nt", reason="otel instrumentation seems to have some issues with freethreading on Windows")
+async def test_no_instrument_override(http_server):
+    with TemporaryDirectory() as tmp_dir:
+        script_path = os.path.join(tmp_dir, "my_script.py")
+
+        with open(script_path, "w") as tempfile:
+            tempfile.write("""
+async def run(self):
+    async with self.client.get("http://localhost:8081/") as resp:
+        assert False, "fail locust span"
+""")
+        proc = await exec(
+            f"aiolocust {tempfile.name} -u 5 --iterations 30 --no-instrument",
+            env={
+                "LOCUST_INSTRUMENT": "1",
+                "OTEL_TRACES_EXPORTER": "console",
+                "OTEL_METRICS_EXPORTER": "none",
+                "OTEL_LOGS_EXPORTER": "none",
+                **os.environ,
+            },
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6)
+        except TimeoutError:
+            proc.terminate()
+            stdout, stderr = await proc.communicate()
+            err = stdout.decode(errors="replace")
+            print(err)
+            output = stdout.decode(errors="replace")
+            print(output)
+            raise AssertionError("process never terminated") from None
+        else:
+            err = stderr.decode(errors="replace")
+            print(err)
+            output = stdout.decode(errors="replace")
+            print(output)
+            assert '"status_code": "ERROR"' in output  # locust span is in the output
+            assert '"status_code": "UNSET"' not in output  # aiohttp span is not in the output
+            assert " GET http://localhost:8081/ " in output
+            assert await proc.wait() == 0
+
+
 async def test_loglevel(http_server):
     with TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(tmp_dir, "my_script.py")

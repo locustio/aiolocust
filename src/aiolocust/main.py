@@ -70,7 +70,8 @@ def main(
     instrument: Annotated[
         bool,
         typer.Option(
-            "--instrument", help="Capture aiohttp traces and metrics using AioHttpClientInstrumentor().instrument()"
+            "--instrument/--no-instrument",
+            help="Capture aiohttp traces and metrics using AioHttpClientInstrumentor().instrument()",
         ),
     ] = False,
     log_level: Annotated[
