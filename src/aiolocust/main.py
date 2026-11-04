@@ -11,12 +11,37 @@ from types import TracebackType
 from typing import Annotated
 
 import typer
+from typer.core import TyperCommand, TyperOption
 
 import aiolocust.config
 from aiolocust.otel import configure_telemetry
 
 app = typer.Typer(add_completion=False)
 logger = logging.getLogger(__name__)
+
+
+class _MainCommand(TyperCommand):
+    def format_help(self, ctx, formatter) -> None:
+        instrument_option = next(
+            (
+                param
+                for param in self.get_params(ctx)
+                if isinstance(param, TyperOption) and "--no-instrument" in param.secondary_opts
+            ),
+            None,
+        )
+        if instrument_option is None:
+            super().format_help(ctx, formatter)
+            return
+
+        secondary_opts = instrument_option.secondary_opts
+        instrument_option.secondary_opts = []
+        try:
+            super().format_help(ctx, formatter)
+        finally:
+            instrument_option.secondary_opts = secondary_opts
+
+
 # avoid annoying "Using selector: KqueueSelector" when running in debug:
 logging.getLogger("asyncio").setLevel(logging.INFO)
 # dont debug log urllib3, because it is very verbose,
@@ -49,7 +74,7 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-@app.command(context_settings={"auto_envvar_prefix": "LOCUST"})
+@app.command(cls=_MainCommand, context_settings={"auto_envvar_prefix": "LOCUST"})
 def main(
     ctx: typer.Context,
     filename: Annotated[
