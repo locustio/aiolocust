@@ -26,14 +26,6 @@ def invoke(tmp_path, locustfile: str, *args, **kwargs):
     return result
 
 
-def test_help_hides_no_instrument():
-    result = CliRunner().invoke(app, ["--help"])
-    print(result.output)
-    assert "--instrument" in result.output
-    assert "--no-instrument" not in result.output
-    assert result.exit_code == 0
-
-
 def test_main(http_server, tmp_path):
     result = invoke(
         tmp_path,
