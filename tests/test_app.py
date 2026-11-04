@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import subprocess
+import sys
 
 import pytest
 from test_zzaiolocust import WINDOWS_DELAY
@@ -27,11 +29,14 @@ def invoke(tmp_path, locustfile: str, *args, **kwargs):
 
 
 def test_help_hides_no_instrument():
-    result = CliRunner().invoke(app, ["--help"])
-    print(result.output)
-    assert "--instrument" in result.output
-    assert "--no-instrument" not in result.output
-    assert result.exit_code == 0
+    result = subprocess.run(
+        [sys.executable, "-m", "aiolocust", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "--instrument" in result.stdout
+    assert "--no-instrument" not in result.stdout
 
 
 def test_main(http_server, tmp_path):
