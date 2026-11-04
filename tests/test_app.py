@@ -28,7 +28,7 @@ def invoke(tmp_path, locustfile: str, *args, **kwargs):
 
 def test_help_hides_no_instrument():
     result = CliRunner().invoke(app, ["--help"])
-
+    print(result.output)
     assert result.exit_code == 0
     assert "--instrument" in result.output
     assert "--no-instrument" not in result.output
