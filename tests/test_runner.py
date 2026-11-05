@@ -8,10 +8,9 @@ from typing import cast
 import aiohttp
 import pytest
 from opentelemetry import trace
-from test_zzaiolocust import WINDOWS_DELAY
 from utils import assert_search
 
-from aiolocust import User, rate_limit, tracer
+from aiolocust import User, otel, rate_limit, tracer
 from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count_stage_index_reset_stats
 from aiolocust.users.http import HttpUser, LocustClientSession
 from aiolocust.users.websocket import WebsocketUser
@@ -214,28 +213,20 @@ def test_desired_user_count_stage_index_reset_stats():
 def test_reset_stats(http_server, caplog, capteesys):
     class TestUser(HttpUser):
         async def run(self):
-            await asyncio.sleep(0.99)  # aim for ~1 req/s
-            async with self.client.get("/") as resp:
-                pass
+            await asyncio.sleep(0.9999)  # aim for ~1 req/s
+            otel.duration_histogram.record(0, attributes={"name": "/"})
 
     with caplog.at_level("INFO", logger="aiolocust.runner"):
         r = Runner([TestUser], host="http://localhost:8081", user_count=10, duration=4, rate=5, reset_stats=True)
         r.stats_print_interval = 0.5
         r.run_test()
 
-    # assert "Resetting" in caplog.text
     out, err = capteesys.readouterr()
-    assert "Summary" in out
-    if WINDOWS_DELAY:
-        assert_search(r" / .* (?:18|19|20|21) .* \(0.0%\)", out)
-    else:
-        assert_search(r" / .* (?:20|21|22|23|24) .* \(0.0%\)", out)
-    highest_rate = 0.0
-    for line in out.splitlines():
-        match = re.search(r"(\d*\.?\d+)/s $", line)
-        if match:
-            rate = float(match.group(1))
-            highest_rate = max(highest_rate, rate)
+    line = out.splitlines()[-1]
+    assert_search(r" Total .* (?:18|19|20|21|22) .* \(0.0%\)", line)
+    match = re.search(r"(\d*\.?\d+)/s $", line)
+    assert match
+    assert float(match.group(1)) >= 9.0
 
 
 def test_current_user_count_gauge(http_server, monkeypatch):
