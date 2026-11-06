@@ -52,7 +52,7 @@ class RequestEntry:
 @dataclass
 class Stage:
     duration: float
-    target: int
+    target: int | None = None
     reset_stats: bool = False
 
 

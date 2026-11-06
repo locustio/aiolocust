@@ -75,8 +75,8 @@ original_sigterm_handler = signal.getsignal(signal.SIGTERM)
 def desired_user_count_stage_index_reset_stats(
     stages: list[Stage], elapsed: float, current_stage_index: int
 ) -> tuple[int | None, int, bool]:
-    total_time = 0.0
-    previous_user_count = 0
+    total_time: float = 0.0
+    previous_user_count: int = 0
     reset_stats = False
     for i in range(len(stages)):
         stage = stages[i]
@@ -85,15 +85,19 @@ def desired_user_count_stage_index_reset_stats(
             reset_stats = reset_stats or stages[i - 1].reset_stats  # have we passed a stage that asked for a reset?
         if elapsed <= total_time:
             time_left_in_stage = total_time - elapsed
-            return (
-                math.ceil(
-                    previous_user_count
-                    + (stage.target - previous_user_count) * (1 - time_left_in_stage / stage.duration)
-                ),
-                i,
-                reset_stats,
-            )
-        previous_user_count = stage.target
+            if stage.target is not None:
+                return (
+                    math.ceil(
+                        previous_user_count
+                        + (stage.target - previous_user_count) * (1 - time_left_in_stage / stage.duration)
+                    ),
+                    i,
+                    reset_stats,
+                )
+            else:
+                return (previous_user_count, i, reset_stats)
+        if stage.target is not None:
+            previous_user_count = stage.target
 
     return None, -1, False
 
@@ -194,7 +198,7 @@ class Runner:
                 ]
             logger.debug(f"Stages: {self.stages}")
 
-        self.target_user_count = max((stage.target for stage in self.stages), default=0)
+        self.target_user_count = max((stage.target for stage in self.stages if stage.target is not None), default=0)
         logger.info(f"Starting test (target user count: {self.target_user_count})")
 
         if event_loops is None:
