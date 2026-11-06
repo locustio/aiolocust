@@ -210,6 +210,46 @@ def test_desired_user_count_stage_index_reset_stats():
     assert desired_user_count_stage_index_reset_stats([Stage(0, 100, True), Stage(1, 100)], 0.001, 0) == (100, 1, True)
 
 
+def test_desired_stages_without_target():
+    stages = [
+        Stage(duration=1, target=2),
+        Stage(duration=1, reset_stats=True),
+        Stage(duration=1, target=4),
+        Stage(duration=1, target=0, reset_stats=True),
+        Stage(duration=1, target=10),
+        Stage(duration=0.5),
+    ]
+    # elapsed, expected user count, expected stage index, expected reset_stats
+    expected_results = [
+        (0, 0, 0, False),
+        (0.1, 1, 0, False),  # ceil avoids 0 users at the start
+        # user count in the second stage is flat
+        (1, 2, 0, False),
+        (1.5, 2, 1, False),
+        (2, 2, 1, False),
+        # halfway through the third stage, and we just finished a reset_stats=True stage:
+        (2.5, 3, 2, True),
+        (3, 4, 2, False),
+        # halfway through ramp down:
+        (3.5, 2, 3, False),
+        (4, 0, 3, False),
+        # ramp up again after reaching 0, and we just finished a reset_stats=True stage:
+        (4.5, 5, 4, True),
+        (4.65, 7, 4, False),
+        (5, 10, 4, False),
+        (5.4, 10, 5, False),
+        (5.6, None, -1, False),  # finished
+    ]
+    current_stage_index = 0
+    for elapsed, expected_users, expected_stage_index, reset_stats in expected_results:
+        result = desired_user_count_stage_index_reset_stats(stages, elapsed, current_stage_index)
+        assert result == (expected_users, expected_stage_index, reset_stats)
+        current_stage_index = result[1]
+
+    # fast rampup
+    assert desired_user_count_stage_index_reset_stats([Stage(0, 100, True), Stage(1, 100)], 0.001, 0) == (100, 1, True)
+
+
 def test_reset_stats(http_server, caplog, capteesys):
     class TestUser(HttpUser):
         async def run(self):
