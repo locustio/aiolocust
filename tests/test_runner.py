@@ -638,6 +638,7 @@ async def test_bad_host(http_server, capteesys):
     assert err == ""
     assert "Summary" in output
     assert "URL should be absolute" in output
+    assert runner.exit_code == 1
 
 
 async def test_websocket_with_failure(http_server, websocket_server, caplog, capteesys):

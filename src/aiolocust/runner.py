@@ -312,6 +312,7 @@ class Runner:
             user_instance.running = False
             self.running_users.discard(user_instance)
             if not self.running_users:
+                self.exit_code = 1
                 await self.shutdown("all users stopped after an error")
 
     def signal_handler(self, signal: int, _frame) -> None:

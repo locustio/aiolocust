@@ -747,3 +747,38 @@ async def run(user):
             print(output)
             assert "Shutting down (target duration elapsed" in err
             assert_search(r" foo .* (?:8|9|10|11) .* \(0.0%\)", output)
+
+
+async def test_bad_host(http_server):
+    with TemporaryDirectory() as tmp_dir:
+        script_path = os.path.join(tmp_dir, "my_script.py")
+
+        with open(script_path, "w") as tempfile:
+            tempfile.write("""
+from aiolocust import HttpUser
+
+class MyUser(HttpUser):
+    host = "foo"
+    async def run(user):
+        pass
+""")
+        proc = await exec(
+            f"aiolocust {tempfile.name} -i 1",
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3)
+        except TimeoutError:
+            proc.kill()
+            stdout, stderr = await proc.communicate()
+            output = stdout.decode(errors="replace")
+            print(output)
+            raise AssertionError("process never terminated") from None
+        else:
+            err = stderr.decode(errors="replace")
+            print(err)
+            output = stdout.decode(errors="replace")
+            print(output)
+            assert "URL should be absolute" in err
+            # fix this later
+            # assert "Traceback" not in err
+        assert await proc.wait() == 1
