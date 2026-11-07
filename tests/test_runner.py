@@ -341,6 +341,23 @@ def test_rate_limiting(http_server, capteesys):
     assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
 
 
+def test_rate_limiting_can_do_1000_rps(http_server, capteesys):
+    class TestUser(HttpUser):
+        @rate_limit(1000)
+        async def run(self):
+            otel.duration_histogram.record(0, attributes={"name": "/"})
+
+    Runner([TestUser], 20, 3, host="http://localhost:8081").run_test()
+    output, err = capteesys.readouterr()
+    assert "Summary" in output
+    line = output.splitlines()[-1]
+    assert_search(r" Total .* \(0.0%\)", line)
+    match = re.search(r"(\d*\.?\d+)/s $", line)
+    assert match
+    assert float(match.group(1)) >= 900.0
+    assert float(match.group(1)) < 1005.0
+
+
 def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):
     class TestUser(HttpUser):
         @rate_limit(1)

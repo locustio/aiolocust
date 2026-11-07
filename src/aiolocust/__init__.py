@@ -52,7 +52,10 @@ class _LimiterPortal:
 
     def _run(self, rate: Rate) -> None:
         asyncio.set_event_loop(self._loop)
-        self._limiter = Limiter(StateBucket([rate], algorithm=TokenBucket()))
+        self._limiter = Limiter(
+            StateBucket([rate], algorithm=TokenBucket()),
+            buffer_ms=1,  # The default retry buffer is 50 ms, which throttles high rates.
+        )
         self._shutdown = asyncio.Event()
         self._ready.set()
         self._loop.run_forever()
@@ -93,6 +96,8 @@ def rate_limit(rate: int, duration: int | Duration = Duration.SECOND, burst: int
     P = ParamSpec("P")
     R = TypeVar("R")
     UserT = TypeVar("UserT", bound="User")
+    if rate / int(duration) > 1:
+        print("Warning: rate_limit does not work well for very high throughputs (>1000/s)")
 
     def decorate(
         func: Callable[Concatenate[UserT, P], AbcCoroutine[Any, Any, R]],
