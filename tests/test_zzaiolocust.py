@@ -174,10 +174,10 @@ async def test_websocket_example_bad_host(http_server):
         assert " websocket.connect " in output
         assert "Summary" in output
         assert_search(r" websocket\.connect .* \(100\.0%\) ", output)
-        assert await proc.wait() == 0
         # assert '"network.protocol.name": "websocket"' in output  # tracing stuff!
         assert not "unhandled error" in output
         assert any(f'"description": "{error_type}' in output for error_type in ("OSError", "ConnectionRefusedError"))
+        assert await proc.wait() == 1
 
 
 async def test_no_locustfile():
@@ -511,8 +511,8 @@ async def run(user):
             output = stdout.decode(errors="replace")
             print(output)
             assert "Summary" in output
-            assert await proc.wait() == 0
             assert_search(r"[12] .* an error", output)
+            assert await proc.wait() == 1
 
 
 async def test_config_and_stages(http_server):
