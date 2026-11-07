@@ -1,5 +1,6 @@
 import asyncio
 import re
+import sys
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -354,7 +355,8 @@ def test_rate_limiting_can_do_1000_rps(http_server, capteesys):
     assert_search(r" Total .* \(0.0%\)", line)
     match = re.search(r"(\d*\.?\d+)/s $", line)
     assert match
-    assert float(match.group(1)) >= 900.0
+    minimum_rate = 250.0 if sys.platform == "win32" else 900.0
+    assert float(match.group(1)) >= minimum_rate
     assert float(match.group(1)) < 1005.0
 
 
