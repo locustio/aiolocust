@@ -1,4 +1,6 @@
 import asyncio
+import ctypes
+import sys
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
@@ -41,6 +43,10 @@ class _LimiterPortal:
     def __init__(self, rate: Rate) -> None:
         self._loop = asyncio.new_event_loop()
         self._ready = threading.Event()
+        self._timer_resolution_lock = threading.Lock()
+        self._timer_resolution_requested = False
+        self._shutdown_requested = False
+        self._winmm: Any = getattr(ctypes, "windll").winmm if sys.platform == "win32" else None
 
         self._thread = threading.Thread(
             target=self._run,
@@ -61,8 +67,18 @@ class _LimiterPortal:
         self._loop.run_forever()
 
     async def acquire(self):
+        self._request_timer_resolution()
         future = asyncio.run_coroutine_threadsafe(self._acquire(), self._loop)
         return await asyncio.shield(asyncio.wrap_future(future))
+
+    def _request_timer_resolution(self) -> None:
+        if self._winmm is None:
+            return
+
+        with self._timer_resolution_lock:
+            if not self._shutdown_requested and not self._timer_resolution_requested:
+                # Windows asyncio timers need 1ms resolution to sustain high-rate permits.
+                self._timer_resolution_requested = self._winmm.timeBeginPeriod(1) == 0
 
     async def _acquire(self) -> bool:
         # we race these two tasks against eachother to avoid waiting for try_aquire_async
@@ -84,6 +100,13 @@ class _LimiterPortal:
         return acquire.result()
 
     def request_shutdown(self) -> None:
+        with self._timer_resolution_lock:
+            if self._shutdown_requested:
+                return
+            self._shutdown_requested = True
+            if self._timer_resolution_requested:
+                self._winmm.timeEndPeriod(1)
+                self._timer_resolution_requested = False
         self._loop.call_soon_threadsafe(self._shutdown.set)
 
     def close(self) -> None:
