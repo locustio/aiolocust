@@ -625,6 +625,21 @@ async def test_websocket_combo(http_server, websocket_server, capteesys):
     assert "http://localhost:8081/" in output
 
 
+async def test_bad_host(http_server, capteesys):
+    class TestUser(HttpUser):
+        host = "foo"
+
+        async def run(self):
+            pass
+
+    runner = Runner([TestUser], iterations=1)
+    await runner.run_test_async()
+    output, err = capteesys.readouterr()
+    assert err == ""
+    assert "Summary" in output
+    assert "URL should be absolute" in output
+
+
 async def test_websocket_with_failure(http_server, websocket_server, caplog, capteesys):
     async def handler(ws):
         async for message in ws:

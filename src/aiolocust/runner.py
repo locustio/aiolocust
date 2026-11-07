@@ -290,26 +290,29 @@ class Runner:
         self.forced_shutdown_timer.cancel()
 
     async def user_loop(self, user_instance: User) -> None:
-        async with user_instance.cm():
-            while user_instance.running and self.running:
-                if self.iteration_counter.increment():
-                    user_instance.running = False
-                    self.running_users.remove(user_instance)
-                    if not self.running_users:
-                        await self.shutdown(f"reached iteration limit ({self.iteration_counter.value})")
-                    self._notify_shutdown_waiters()
-                    break
-                try:
-                    await user_instance.run()
-                except EXPECTED_ERRORS:
-                    pass  # these errors should already have been recorded by the User
-                except Exception as e:
-                    if isinstance(e, RuntimeError) and "cannot schedule new futures after interpreter shutdown" in str(
-                        e
-                    ):
-                        return
-                    record_error(str(e))
-                    logger.exception(e)
+        try:
+            async with user_instance.cm():
+                while user_instance.running and self.running:
+                    if self.iteration_counter.increment():
+                        user_instance.running = False
+                        self.running_users.remove(user_instance)
+                        if not self.running_users:
+                            await self.shutdown(f"reached iteration limit ({self.iteration_counter.value})")
+                        self._notify_shutdown_waiters()
+                        break
+                    try:
+                        await user_instance.run()
+                    except EXPECTED_ERRORS:
+                        pass  # these errors should already have been recorded by the User
+        except Exception as e:
+            if isinstance(e, RuntimeError) and "cannot schedule new futures after interpreter shutdown" in str(e):
+                return
+            record_error(str(e))
+            logger.exception(e)
+            user_instance.running = False
+            self.running_users.discard(user_instance)
+            if not self.running_users:
+                await self.shutdown("all users stopped after an error")
 
     def signal_handler(self, signal: int, _frame) -> None:
         if not self.running:
