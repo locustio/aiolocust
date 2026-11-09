@@ -45,7 +45,6 @@ class _LimiterPortal:
         self._ready = threading.Event()
         self._timer_resolution_lock = threading.Lock()
         self._timer_resolution_requested = False
-        self._shutdown_requested = False
         self._winmm: Any = getattr(ctypes, "windll").winmm if sys.platform == "win32" else None
 
         self._thread = threading.Thread(
@@ -72,11 +71,8 @@ class _LimiterPortal:
         return await asyncio.shield(asyncio.wrap_future(future))
 
     def _request_timer_resolution(self) -> None:
-        if self._winmm is None:
-            return
-
         with self._timer_resolution_lock:
-            if not self._shutdown_requested and not self._timer_resolution_requested:
+            if self._winmm is not None and not self._timer_resolution_requested:
                 # Windows asyncio timers need 1ms resolution to sustain high-rate permits.
                 self._timer_resolution_requested = self._winmm.timeBeginPeriod(1) == 0
 
@@ -101,12 +97,10 @@ class _LimiterPortal:
 
     def request_shutdown(self) -> None:
         with self._timer_resolution_lock:
-            if self._shutdown_requested:
-                return
-            self._shutdown_requested = True
             if self._timer_resolution_requested:
                 self._winmm.timeEndPeriod(1)
                 self._timer_resolution_requested = False
+            self._winmm = None
         self._loop.call_soon_threadsafe(self._shutdown.set)
 
     def close(self) -> None:

@@ -10,7 +10,7 @@ import pytest
 from opentelemetry import trace
 from utils import assert_search
 
-from aiolocust import User, otel, rate_limit, tracer
+from aiolocust import User, _LimiterPortal, otel, rate_limit, tracer
 from aiolocust.runner import LoopWorker, Runner, Stage, desired_user_count_stage_index_reset_stats
 from aiolocust.users.http import HttpUser, LocustClientSession
 from aiolocust.users.websocket import WebsocketUser
@@ -356,6 +356,44 @@ def test_rate_limiting_can_do_1000_rps(http_server, capteesys):
     assert match
     assert float(match.group(1)) >= 900.0
     assert float(match.group(1)) < 1005.0
+
+
+def test_limiter_releases_windows_timer_resolution_on_shutdown():
+    class WinMM:
+        begin_calls = 0
+        end_calls = 0
+
+        def timeBeginPeriod(self, _period):
+            self.begin_calls += 1
+            return 0
+
+        def timeEndPeriod(self, _period):
+            self.end_calls += 1
+
+    class Loop:
+        def call_soon_threadsafe(self, callback):
+            callback()
+
+    class Shutdown:
+        def set(self):
+            pass
+
+    limiter = _LimiterPortal.__new__(_LimiterPortal)
+    limiter._timer_resolution_lock = threading.Lock()
+    limiter._timer_resolution_requested = False
+    winmm = WinMM()
+    limiter._winmm = winmm
+    limiter._loop = Loop()
+    limiter._shutdown = Shutdown()
+
+    limiter._request_timer_resolution()
+    limiter.request_shutdown()
+    limiter._request_timer_resolution()
+
+    assert limiter._winmm is None
+    assert limiter._timer_resolution_requested is False
+    assert winmm.begin_calls == 1
+    assert winmm.end_calls == 1
 
 
 def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):
