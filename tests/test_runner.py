@@ -354,8 +354,8 @@ def test_rate_limiting_can_do_1000_rps(http_server, capteesys):
     assert_search(r" Total .* \(0.0%\)", line)
     match = re.search(r"(\d*\.?\d+)/s $", line)
     assert match
-    assert float(match.group(1)) >= 900.0
-    assert float(match.group(1)) < 1005.0
+    rate = float(match.group(1))
+    assert 900.0 < rate < 1005.0
 
 
 def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):
