@@ -2,8 +2,10 @@ import asyncio
 import re
 import threading
 import time
+from concurrent.futures import Future
 from contextlib import asynccontextmanager
 from typing import cast
+from unittest.mock import patch
 
 import aiohttp
 import pytest
@@ -386,9 +388,19 @@ def test_limiter_releases_windows_timer_resolution_on_shutdown():
     limiter._loop = Loop()
     limiter._shutdown = Shutdown()
 
-    limiter._request_timer_resolution()
-    limiter.request_shutdown()
-    limiter._request_timer_resolution()
+    def completed_future(coroutine, _loop):
+        coroutine.close()
+        future = Future()
+        future.set_result(True)
+        return future
+
+    async def acquire_before_and_after_shutdown():
+        assert await limiter.acquire()
+        limiter.request_shutdown()
+        assert await limiter.acquire()
+
+    with patch("aiolocust.asyncio.run_coroutine_threadsafe", side_effect=completed_future):
+        asyncio.run(acquire_before_and_after_shutdown())
 
     assert limiter._winmm is None
     assert limiter._timer_resolution_requested is False

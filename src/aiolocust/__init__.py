@@ -66,15 +66,12 @@ class _LimiterPortal:
         self._loop.run_forever()
 
     async def acquire(self):
-        self._request_timer_resolution()
-        future = asyncio.run_coroutine_threadsafe(self._acquire(), self._loop)
-        return await asyncio.shield(asyncio.wrap_future(future))
-
-    def _request_timer_resolution(self) -> None:
         with self._timer_resolution_lock:
             if self._winmm is not None and not self._timer_resolution_requested:
                 # Windows asyncio timers need 1ms resolution to sustain high-rate permits.
                 self._timer_resolution_requested = self._winmm.timeBeginPeriod(1) == 0
+        future = asyncio.run_coroutine_threadsafe(self._acquire(), self._loop)
+        return await asyncio.shield(asyncio.wrap_future(future))
 
     async def _acquire(self) -> bool:
         # we race these two tasks against eachother to avoid waiting for try_aquire_async
