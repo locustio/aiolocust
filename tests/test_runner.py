@@ -408,6 +408,34 @@ def test_limiter_releases_windows_timer_resolution_on_shutdown():
     assert winmm.end_calls == 1
 
 
+def test_limiter_shutdown_without_windows_timer_resolution():
+    class Loop:
+        def call_soon_threadsafe(self, callback):
+            callback()
+
+    class Shutdown:
+        def set(self):
+            pass
+
+    limiter = _LimiterPortal.__new__(_LimiterPortal)
+    limiter._winmm = None
+    limiter._loop = cast(asyncio.AbstractEventLoop, Loop())
+    limiter._shutdown = cast(asyncio.Event, Shutdown())
+
+    def completed_future(coroutine, _loop):
+        coroutine.close()
+        future = Future()
+        future.set_result(True)
+        return future
+
+    async def acquire_and_shutdown():
+        assert await limiter.acquire()
+        limiter.request_shutdown()
+
+    with patch("aiolocust.asyncio.run_coroutine_threadsafe", side_effect=completed_future):
+        asyncio.run(acquire_and_shutdown())
+
+
 def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):
     class TestUser(HttpUser):
         @rate_limit(1)
