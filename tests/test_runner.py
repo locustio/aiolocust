@@ -356,6 +356,14 @@ def test_rate_limiting_can_do_1000_rps(http_server, capteesys):
     assert match
     rate = float(match.group(1))
     assert 900.0 < rate < 1005.0
+    current_rates = [
+        float(matches[-1])
+        for line in output.splitlines()
+        if line.lstrip().startswith("Total")
+        if len(matches := re.findall(r"(\d*\.?\d+)/s", line)) == 2
+    ]
+    assert current_rates, "no per-interval throughput measurements were printed"
+    assert current_rates[-1] > 900.0, f"throughput fell to {current_rates[-1]} RPS"
 
 
 def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):

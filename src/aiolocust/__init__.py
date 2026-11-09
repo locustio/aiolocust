@@ -13,6 +13,11 @@ from typing import Any, Concatenate, ParamSpec, TypeVar
 from opentelemetry import trace
 from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
+try:
+    from uvloop import new_event_loop as new_limiter_event_loop
+except ImportError:
+    new_limiter_event_loop = asyncio.new_event_loop
+
 tracer = trace.get_tracer("aiolocust", version("aiolocust"))
 
 
@@ -41,7 +46,7 @@ from aiolocust.users.websocket import WebsocketUser  # type: ignore # noqa: F401
 
 class _LimiterPortal:
     def __init__(self, rate: Rate) -> None:
-        self._loop = asyncio.new_event_loop()
+        self._loop = new_limiter_event_loop()
         self._ready = threading.Event()
         self._timer_resolution_requested = False
         self._winmm: Any = getattr(ctypes, "windll").winmm if sys.platform == "win32" else None
