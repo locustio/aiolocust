@@ -385,8 +385,8 @@ def test_limiter_releases_windows_timer_resolution_on_shutdown():
     limiter._timer_resolution_requested = False
     winmm = WinMM()
     limiter._winmm = winmm
-    limiter._loop = Loop()
-    limiter._shutdown = Shutdown()
+    limiter._loop = cast(asyncio.AbstractEventLoop, Loop())
+    limiter._shutdown = cast(asyncio.Event, Shutdown())
 
     def completed_future(coroutine, _loop):
         coroutine.close()
