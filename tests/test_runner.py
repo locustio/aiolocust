@@ -347,7 +347,7 @@ def test_rate_limiting_can_do_1000_rps(http_server, capteesys):
         async def run(self):
             otel.duration_histogram.record(0, attributes={"name": "/"})
 
-    Runner([TestUser], 20, 4, 20, reset_stats=True, host="http://localhost:8081").run_test()
+    Runner([TestUser], 20, 5, host="http://localhost:8081").run_test()
     output, err = capteesys.readouterr()
     assert "Summary" in output
     line = output.splitlines()[-1]
