@@ -19,19 +19,10 @@ from aiohttp import ClientOSError, ClientResponseError
 from opentelemetry import _logs, metrics
 from rich.console import Console
 
-from aiolocust import User, errortracker, events, stats
+from aiolocust import User, errortracker, events, new_event_loop, stats
 from aiolocust.datatypes import SafeCounter, Stage
 from aiolocust.errortracker import record_error
 from aiolocust.otel import configure_telemetry
-
-# uvloop is faster than the default pure-python asyncio event loop
-# so if it is installed, we're going to be using that one
-try:
-    import uvloop
-
-    new_event_loop = uvloop.new_event_loop
-except ImportError:
-    new_event_loop = None
 
 logger = logging.getLogger(__name__)
 meter = metrics.get_meter("locust")
@@ -110,7 +101,7 @@ def shutdown_timeout() -> None:
 class LoopWorker(threading.Thread):
     def __init__(self) -> None:
         super().__init__(daemon=True)
-        self.loop = asyncio.new_event_loop()
+        self.loop = new_event_loop()
 
     def run(self) -> None:
         asyncio.set_event_loop(self.loop)

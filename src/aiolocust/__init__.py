@@ -15,6 +15,15 @@ from pyrate_limiter import Duration, Limiter, Rate, StateBucket, TokenBucket
 
 tracer = trace.get_tracer("aiolocust", version("aiolocust"))
 
+# uvloop is faster than the default pure-python asyncio event loop
+# so if it is installed, we're going to be using that one
+try:
+    import uvloop
+
+    new_event_loop = uvloop.new_event_loop
+except ImportError:
+    new_event_loop = asyncio.new_event_loop
+
 
 class User(ABC):
     host: str | None = None
