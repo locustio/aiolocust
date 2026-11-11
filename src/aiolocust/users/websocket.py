@@ -42,6 +42,11 @@ class WebsocketUser(User):
     ) -> None:
         url = url or self.host
         assert url, "No url specified"
+
+        if self.websocket:
+            self.websocket.transport.abort()
+            await self.websocket.wait_closed()
+
         if not ssl and url.startswith("wss://"):
             ssl = truststore.SSLContext(PROTOCOL_TLS_CLIENT)
             ssl.check_hostname = False
