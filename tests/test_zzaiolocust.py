@@ -431,10 +431,49 @@ async def run(user):
             output = stdout.decode(errors="replace")
             err = stderr.decode(errors="replace")
             print(output)
+            print(err)
             assert "Summary" in output
             assert await proc.wait() == 0
+            assert "Shutting down (got SIGINT/CTRL-C)" in err
+
+
+async def test_sigint_when_iterations_dont_finish(http_server):
+    with TemporaryDirectory() as tmp_dir:
+        script_path = os.path.join(tmp_dir, "my_script.py")
+
+        with open(script_path, "w") as tempfile:
+            tempfile.write("""
+async def run(user):
+    while True:
+        async with user.client.get("http://localhost:8081/") as resp:
+            pass
+""")
+        proc = await exec(
+            f"aiolocust {tempfile.name} --duration 10 --config '{{\"shutdown_timeout\": 1}}'",
+            creationflags=creationflags,
+        )
+        try:
+            await asyncio.sleep(1)
+            if os.name == "nt":
+                proc.send_signal(signal.CTRL_C_EVENT)
+            else:
+                proc.send_signal(signal.SIGINT)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3)
+        except TimeoutError:
+            proc.kill()
+            stdout, stderr = await proc.communicate()
+            output = stdout.decode(errors="replace")
+            print(output)
+            raise AssertionError("process never terminated") from None
+        else:
+            output = stdout.decode(errors="replace")
+            err = stderr.decode(errors="replace")
+            print(output)
+            assert "Summary" in output
             print(err)
             assert "Shutting down (got SIGINT/CTRL-C)" in err
+            assert "Shutdown timed out" in err
+            assert await proc.wait() == 124
 
 
 async def test_sigint_doesnt_wait_for_otel_to_connect(http_server):
