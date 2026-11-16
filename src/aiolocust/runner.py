@@ -39,7 +39,7 @@ try:
     # Gotta do some special logic for Playwright, because it is an optional dependency.
     import playwright.async_api  # pyright: ignore[reportMissingImports]
 
-    EXPECTED_ERRORS += playwright.async_api.TimeoutError  # pyright: ignore[reportConstantRedefinition]
+    EXPECTED_ERRORS += (playwright.async_api.TimeoutError,)  # pyright: ignore[reportConstantRedefinition]
 except ImportError:
     pass
 
