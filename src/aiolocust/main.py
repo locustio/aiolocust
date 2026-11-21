@@ -1,3 +1,4 @@
+import importlib.machinery
 import importlib.util
 import inspect
 import json
@@ -7,7 +8,7 @@ import sys
 import traceback
 from importlib.metadata import version
 from pathlib import Path
-from types import TracebackType
+from types import ModuleType, TracebackType
 from typing import Annotated
 
 import typer
@@ -72,6 +73,52 @@ def version_callback(value: bool) -> None:
     if value:
         print(f"aiolocust {version('aiolocust')}")
         raise typer.Exit()
+
+
+def _load_locustfile(file_path: Path) -> ModuleType:
+    if not file_path.is_file():
+        raise ImportError(f"Could not load the file at {file_path}")
+
+    spec = importlib.util.spec_from_file_location(file_path.stem, file_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load the file at {file_path}")
+
+    import_root = file_path.parent
+    module_parts = [file_path.stem]
+    if file_path.suffix == ".py" and "." not in file_path.stem:
+        while import_root.name.isidentifier():
+            package_spec = importlib.machinery.PathFinder.find_spec(import_root.name, [str(import_root.parent)])
+            if package_spec is None or package_spec.loader is None or package_spec.submodule_search_locations is None:
+                break
+            if package_spec.origin == str(file_path):
+                module_parts.clear()
+            module_parts.insert(0, import_root.name)
+            import_root = import_root.parent
+
+    # Keep the import root available for imports made later by user code.
+    if sys.path[:1] != [str(import_root)]:
+        sys.path.insert(0, str(import_root))
+
+    if import_root != file_path.parent:
+        module_name = ".".join(module_parts)
+        module = importlib.import_module(module_name)
+        if module.__file__ is None or Path(module.__file__).resolve() != file_path:
+            raise ImportError(f"{module_name!r} resolved to {module.__file__!r} instead of {str(file_path)!r}")
+        return module
+
+    # Load standalone scripts by path so same-named scripts do not reuse cached code.
+    module = importlib.util.module_from_spec(spec)
+    previous_module = sys.modules.get(spec.name)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        if previous_module is None:
+            sys.modules.pop(spec.name, None)
+        else:
+            sys.modules[spec.name] = previous_module
+        raise
+    return module
 
 
 @app.command(cls=_MainCommand, context_settings={"auto_envvar_prefix": "LOCUST"})
@@ -178,22 +225,6 @@ def main(
     from aiolocust import HttpUser, User
     from aiolocust.runner import Runner
 
-    module_name = file_path.stem
-
-    spec = importlib.util.spec_from_file_location(
-        module_name,
-        file_path,
-        submodule_search_locations=[str(file_path.parent)],
-    )
-    if spec is None or spec.loader is None:
-        typer.echo(f"Error: Could not load the file at {file_path}")
-        raise typer.Exit(code=1)
-
-    module = importlib.util.module_from_spec(spec)
-
-    # Add the module to sys.modules so it behaves like a normal import
-    sys.modules[module_name] = module
-
     SDK_ROOT = Path(__file__).resolve().parent
 
     def is_ignored_frame(tb: TracebackType) -> bool:
@@ -201,6 +232,8 @@ def main(
 
         # 1. Skip frozen / synthetic frames
         if filename.startswith("<") and filename.endswith(">"):
+            return True
+        if tb.tb_frame.f_globals.get("__name__") == "importlib":
             return True
 
         # 2. Skip your SDK frames
@@ -213,9 +246,8 @@ def main(
 
         return False
 
-    # Run any top-level code
     try:
-        spec.loader.exec_module(module)
+        module = _load_locustfile(file_path)
     except BaseException as exc:
         # if there's an error during import, print the traceback for the user code, but leave out aiolocust and importlib
         tb = exc.__traceback__

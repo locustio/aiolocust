@@ -1,13 +1,14 @@
 import json
 import os
 import re
+import sys
 
 import pytest
 from test_zzaiolocust import WINDOWS_DELAY
 from typer.testing import CliRunner
 
 from aiolocust import events
-from aiolocust.main import app
+from aiolocust.main import _load_locustfile, app
 
 
 def _timeout_handler(_signum, _frame):  # pyright: ignore[reportUnusedFunction]
@@ -231,27 +232,95 @@ async def run(user):
     # assert js["total"]["rate"] == rate_from_log
 
 
-def test_relative_import_in_module(tmp_path):
-    runner = CliRunner()
-    os.makedirs(tmp_path / "mytests")
-    with open(tmp_path / "mytests/__init__.py", "w") as f:
-        f.write("")
-    with open(tmp_path / "mytests/helper.py", "w") as f:
-        f.write(
-            """
-async def run(user):
-pass
-"""
-        )
-    with open(tmp_path / "mytests/my_locustfile.py", "w") as f:
-        f.write(
-            """
+def test_relative_import_in_module(tmp_path, monkeypatch):
+    package = tmp_path / "loadtests"
+    scenarios = package / "scenarios"
+    scenarios.mkdir(parents=True)
+    (package / "__init__.py").write_text("VALUE = 1\n")
+    (scenarios / "__init__.py").touch()
+    (scenarios / "helper.py").write_text("async def run(user): pass\n")
+    locustfile = scenarios / "my_locustfile.py"
+    locustfile.write_text(
+        """
+from .. import VALUE
 from .helper import run
-"""
-        )
+from loadtests.scenarios import my_locustfile
 
-        result = runner.invoke(app, [str(tmp_path / "mytests/my_locustfile.py"), "--iterations", "1"])
-        assert result.exit_code == 0
+assert my_locustfile.run is run
+"""
+    )
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    try:
+        result = CliRunner().invoke(app, [str(locustfile), "--iterations", "1"])
+    finally:
+        for name in tuple(sys.modules):
+            if name == "loadtests" or name.startswith("loadtests."):
+                sys.modules.pop(name)
+    assert result.exit_code == 0, result.output
+
+
+async def test_standalone_locustfile_imports_sibling_at_runtime(tmp_path, monkeypatch):
+    (tmp_path / "standalone_helper.py").touch()
+    locustfile = tmp_path / "standalone_locustfile.py"
+    locustfile.write_text(
+        """
+assert __package__ == ""
+assert "__path__" not in globals()
+
+async def run():
+    import standalone_helper
+"""
+    )
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    try:
+        module = _load_locustfile(locustfile)
+        await module.run()
+    finally:
+        sys.modules.pop("standalone_helper", None)
+        sys.modules.pop("standalone_locustfile", None)
+
+
+def test_standalone_locustfile_rejects_relative_import(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    result = invoke(tmp_path, "from .helper import run\n")
+    assert result.exit_code == 1
+    assert "attempted relative import with no known parent package" in result.output
+
+
+def test_load_package_initializer(tmp_path, monkeypatch):
+    package = tmp_path / "initializer_test_package"
+    package.mkdir()
+    (package / "helper.py").touch()
+    locustfile = package / "__init__.py"
+    locustfile.write_text("from . import helper\n")
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    try:
+        module = _load_locustfile(locustfile)
+        assert module.__name__ == "initializer_test_package"
+    finally:
+        for name in tuple(sys.modules):
+            if name == "initializer_test_package" or name.startswith("initializer_test_package."):
+                sys.modules.pop(name)
+
+
+def test_packaged_locustfile_rejects_cached_module_from_other_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    paths = []
+    for dirname in ("first", "second"):
+        package = tmp_path / dirname / "collision_test_package"
+        package.mkdir(parents=True)
+        (package / "__init__.py").touch()
+        locustfile = package / "locustfile.py"
+        locustfile.write_text("VALUE = 1\n")
+        paths.append(locustfile)
+    try:
+        _load_locustfile(paths[0])
+        with pytest.raises(ImportError, match="resolved to .* instead of"):
+            _load_locustfile(paths[1])
+    finally:
+        for name in tuple(sys.modules):
+            if name == "collision_test_package" or name.startswith("collision_test_package."):
+                sys.modules.pop(name)
 
 
 def test_config(http_server, tmp_path):
