@@ -69,6 +69,11 @@ To save the final Rich summary as a static HTML report:
 aiolocust --duration 30 --users 100 --html-report report.html
 ```
 
+For relative imports, put your locustfile in a Python package (a directory with an
+`__init__.py`). Run it by path, for example `aiolocust my_directory/locustfile.py`.
+Inside the locustfile, `from .helpers import ...` imports a sibling module, and
+`from ..helpers import ...` works in a subpackage.
+
 ## Rate limiting
 
 If you want to set a target request rate, rather than relying solely on user count and static sleeps to control the load, use [pyrate](https://pyratelimiter.readthedocs.io/en/stable/).
