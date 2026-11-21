@@ -341,7 +341,7 @@ def test_rate_limiting(http_server, capteesys):
     assert highest_rate <= 14.0, f"rate limit exceeded: {highest_rate}"
 
 
-def test_rate_limiting_can_do_1000_rps(http_server, capteesys):
+def test_rate_limiting_can_do_1000_rps(capteesys):
     class TestUser(HttpUser):
         @rate_limit(1000)
         async def run(self):
