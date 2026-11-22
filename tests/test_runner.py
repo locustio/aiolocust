@@ -1,4 +1,5 @@
 import asyncio
+import platform
 import re
 import threading
 import time
@@ -355,7 +356,12 @@ def test_rate_limiting_can_do_1000_rps(capteesys):
     match = re.search(r"(\d*\.?\d+)/s $", line)
     assert match
     rate = float(match.group(1))
-    assert 900.0 < rate < 1005.0
+    assert rate < 1005.0
+    if platform.system() != "Darwin":
+        assert 900.0 < rate
+    else:
+        # macOS runners on GH seem really bad.
+        assert 700.0 < rate
 
 
 def test_rate_limiting_doesnt_block_shutdown(http_server, capteesys):
