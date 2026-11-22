@@ -4,20 +4,58 @@ import time
 from asyncio import Future
 from collections.abc import AsyncGenerator, Coroutine
 from contextlib import asynccontextmanager
+from time import perf_counter
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from aiohttp import ClientConnectorError, ClientResponse, ClientResponseError, ClientSession
+from aiohttp import (
+    ClientConnectorError,
+    ClientResponse,
+    ClientResponseError,
+    ClientSession,
+)
 from aiohttp.client import _RequestContextManager
-from opentelemetry import context, trace
+from opentelemetry import context, metrics, trace
 from opentelemetry.context import Context, Token  # type: ignore # Token exists, I promise
 from opentelemetry.trace import Span, StatusCode
 
+import aiolocust.config
 from aiolocust import User, tracer
 
 if TYPE_CHECKING:  # avoid circular import
     from aiolocust.runner import Runner
+
+
+meter = metrics.get_meter("locust")
+dns_histogram = meter.create_histogram(
+    "dns.lookup.duration",
+    unit="s",
+    description="DNS lookup",
+)
+connection_histogram = meter.create_histogram(
+    "locust.client.connection.create.duration",
+    unit="s",
+    description="Connection setup time (including DNS and TLS)",
+)
+
+
+async def dns_start(session, ctx, params):  # noqa: ARG001
+    ctx.dns_start = perf_counter()
+
+
+async def dns_end(session, ctx, params):  # noqa: ARG001
+    elapsed = perf_counter() - ctx.dns_start
+    connection_histogram.record(elapsed)
+
+
+async def connection_create_start(session, ctx, params):  # noqa: ARG001
+    ctx.connection_start = perf_counter()
+
+
+async def connection_create_end(session, ctx, params):  # noqa: ARG001
+    elapsed = perf_counter() - ctx.connection_start
+    connection_histogram.record(elapsed)
 
 
 class HttpUser(User):
@@ -58,10 +96,20 @@ class HttpUser(User):
 
     @asynccontextmanager
     async def cm(self) -> AsyncGenerator[None]:
+        if aiolocust.config.connection_timings:
+            trace_config = aiohttp.TraceConfig()
+            trace_config.on_dns_resolvehost_start.append(dns_start)
+            trace_config.on_dns_resolvehost_end.append(dns_end)
+            trace_config.on_connection_create_start.append(connection_create_start)
+            trace_config.on_connection_create_end.append(connection_create_end)
+            trace_configs = [trace_config]
+        else:
+            trace_configs = None
         async with LocustClientSession(
             self.runner,
             self.host,
             connector=aiohttp.TCPConnector(ssl=self.ssl_context) if self.ssl_context else None,
+            trace_configs=trace_configs,
             **self.session_kwargs,
         ) as self.client:
             yield

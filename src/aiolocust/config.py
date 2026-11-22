@@ -25,4 +25,5 @@ event_loops: int | None = None
 html_report: Path | None = None
 json_report: Path | None = None
 profile: str | None = None
+connection_timings: bool = False
 _version: bool = False

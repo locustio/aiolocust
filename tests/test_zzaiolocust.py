@@ -180,6 +180,39 @@ async def test_websocket_example_bad_host(http_server):
         assert await proc.wait() == 1
 
 
+async def test_dns_and_connect_metrics(http_server):
+    duration = 1 + WINDOWS_DELAY * 5
+    proc = await exec(
+        f"aiolocust -d {duration} -i 1 -H http://localhost:8081 --connection-timings",
+        env={
+            "OTEL_TRACES_EXPORTER": "none",
+            "OTEL_METRICS_EXPORTER": "console",
+            "OTEL_LOGS_EXPORTER": "none",
+            **os.environ,
+        },
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+    except TimeoutError:
+        proc.kill()
+        stdout, stderr = await proc.communicate()
+        err = stderr.decode(errors="replace")
+        print(err)
+        output = stdout.decode(errors="replace")
+        print(output)
+        raise AssertionError("process never terminated") from None
+    else:
+        err = stderr.decode(errors="replace")
+        assert "Shutting down" in err
+        output = stdout.decode(errors="replace")
+        print(output)
+        assert "locust.client.duration" in output
+        # we want to test this, but since there's no dns lookup made for localhost, it doesn't actually work right now
+        # assert "dns.lookup.duration" in output
+        assert "locust.client.connection.create.duration" in output
+        assert await proc.wait() == 0
+
+
 async def test_no_locustfile():
     with TemporaryDirectory() as tmp_dir:
         proc = await exec(
@@ -821,3 +854,159 @@ class MyUser(HttpUser):
             # fix this later
             # assert "Traceback" not in err
         assert await proc.wait() == 1
+
+
+# async def test_memory_usage_with_lots_of_errors(http_server):
+#     usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+#     max_rss_bytes_before = usage.ru_maxrss
+#     with TemporaryDirectory() as tmp_dir:
+#         script_path = os.path.join(tmp_dir, "my_script.py")
+
+#         with open(script_path, "w") as tempfile:
+#             tempfile.write("""
+# from aiolocust import HttpUser, otel, tracer
+# import random
+# from opentelemetry import trace
+# from opentelemetry.trace import StatusCode
+
+# def rnd():
+#     return f"random unique error message {random.randint(0, 99999999999)}"
+
+# class MyUser(HttpUser):
+#     async def run(self):
+#         for _ in range(100):
+#             otel.duration_histogram.record(0, attributes={"name": "/"})
+
+#         with tracer.start_as_current_span(
+#             "manual_span",
+#             kind=trace.SpanKind.CLIENT,
+#         ) as span:
+#             span.set_attribute("url.full", "http://example.com")
+#             span.record_exception(Exception(rnd()))
+#             span.set_status(StatusCode.ERROR, rnd())
+
+#         async with self.client.get("http://localhost:8081/") as resp:
+#             resp.span.record_exception(Exception(rnd()))
+#             assert False, rnd()
+# """)
+#         proc = await exec(
+#             f"aiolocust {tempfile.name} -d 90 -u 50",
+#         )
+#         try:
+#             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=99)
+#         except TimeoutError:
+#             proc.kill()
+#             stdout, stderr = await proc.communicate()
+#             output = stdout.decode(errors="replace")
+#             print(output)
+#             raise AssertionError("process never terminated") from None
+#         else:
+#             err = stderr.decode(errors="replace")
+#             print(err)
+#             output = stdout.decode(errors="replace")
+#             print(output)
+#             assert "random unique error message " in output
+#             assert "OTHER" in output
+#             # fix this later
+#             # assert "Traceback" not in err
+#         assert await proc.wait() == 0
+
+#         # Verify memory usage didn't exceed 100 MB
+#         usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+#         max_rss_bytes = usage.ru_maxrss
+#         # On macOS, ru_maxrss is in bytes; on Linux, it's in KB
+#         if os.name != "nt":  # Not Windows
+#             if max_rss_bytes < 100000:  # Likely Linux (KB), convert assumption
+#                 max_rss_mb = max_rss_bytes / 1024
+#             else:  # Likely macOS (bytes)
+#                 max_rss_mb = max_rss_bytes / (1024 * 1024)
+#         else:
+#             max_rss_mb = max_rss_bytes / (1024 * 1024)
+
+#         print(f"Max RSS: {max_rss_mb:.2f} MB")
+
+#         assert max_rss_mb < 200, "Memory usage > 100 MB"
+#         assert max_rss_mb > 5, "Error reading process memory, < 5 MB is unreasonably low"
+#         assert max_rss_bytes_before < max_rss_bytes, "we didnt use more after this test? that makes no sense"
+#         match = re.search(r"(\d*\.?\d+) .* OTHER", output)
+#         assert match
+#         errorcount = float(match.group(1))
+#         assert errorcount > 20000
+
+
+# async def test_memory_usage_websocket(http_server):
+#     usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+#     max_rss_bytes_before = usage.ru_maxrss
+#     with TemporaryDirectory() as tmp_dir:
+#         script_path = os.path.join(tmp_dir, "my_script.py")
+
+#         with open(script_path, "w") as tempfile:
+#             tempfile.write("""
+# from aiolocust import HttpUser, otel, tracer
+# import random
+# from opentelemetry import trace
+# from opentelemetry.trace import StatusCode
+
+# def rnd():
+#     return f"random unique error message {random.randint(0, 99999999999)}"
+
+# class MyUser(HttpUser):
+#     async def run(self):
+#         for _ in range(100):
+#             otel.duration_histogram.record(0, attributes={"name": "/"})
+
+#         with tracer.start_as_current_span(
+#             "manual_span",
+#             kind=trace.SpanKind.CLIENT,
+#         ) as span:
+#             span.set_attribute("url.full", "http://example.com")
+#             span.record_exception(Exception(rnd()))
+#             span.set_status(StatusCode.ERROR, rnd())
+
+#         async with self.client.get("http://localhost:8081/") as resp:
+#             resp.span.record_exception(Exception(rnd()))
+#             assert False, rnd()
+# """)
+#         proc = await exec(
+#             f"aiolocust {tempfile.name} -d 90 -u 50",
+#         )
+#         try:
+#             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=99)
+#         except TimeoutError:
+#             proc.kill()
+#             stdout, stderr = await proc.communicate()
+#             output = stdout.decode(errors="replace")
+#             print(output)
+#             raise AssertionError("process never terminated") from None
+#         else:
+#             err = stderr.decode(errors="replace")
+#             print(err)
+#             output = stdout.decode(errors="replace")
+#             print(output)
+#             assert "random unique error message " in output
+#             assert "OTHER" in output
+#             # fix this later
+#             # assert "Traceback" not in err
+#         assert await proc.wait() == 0
+
+#         # Verify memory usage didn't exceed 100 MB
+#         usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+#         max_rss_bytes = usage.ru_maxrss
+#         # On macOS, ru_maxrss is in bytes; on Linux, it's in KB
+#         if os.name != "nt":  # Not Windows
+#             if max_rss_bytes < 100000:  # Likely Linux (KB), convert assumption
+#                 max_rss_mb = max_rss_bytes / 1024
+#             else:  # Likely macOS (bytes)
+#                 max_rss_mb = max_rss_bytes / (1024 * 1024)
+#         else:
+#             max_rss_mb = max_rss_bytes / (1024 * 1024)
+
+#         print(f"Max RSS: {max_rss_mb:.2f} MB")
+
+#         assert max_rss_mb < 200, "Memory usage > 100 MB"
+#         assert max_rss_mb > 5, "Error reading process memory, < 5 MB is unreasonably low"
+#         assert max_rss_bytes_before < max_rss_bytes, "we didnt use more after this test? that makes no sense"
+#         match = re.search(r"(\d*\.?\d+) .* OTHER", output)
+#         assert match
+#         errorcount = float(match.group(1))
+#         assert errorcount > 20000
