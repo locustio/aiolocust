@@ -186,6 +186,9 @@ def main(
             help="A description of the test run to include in otel resource attributes,\n\nto differentiate between runs with the same file name",
         ),
     ] = None,
+    connection_timings: Annotated[
+        bool, typer.Option("--connection-timings", help="Create metrics for DNS and connection times")
+    ] = False,
     _version: bool = typer.Option(
         None,
         "--version",
