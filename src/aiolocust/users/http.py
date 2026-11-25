@@ -14,6 +14,7 @@ from aiohttp import (
     ClientResponse,
     ClientResponseError,
     ClientSession,
+    ServerDisconnectedError,
 )
 from aiohttp.client import _RequestContextManager
 from opentelemetry import context, metrics, trace
@@ -151,7 +152,7 @@ class LocustRequestContextManager(_RequestContextManager):
         self._token = context.attach(ctx)
         try:
             await super().__aenter__()
-        except (ClientConnectorError, ClientResponseError, TimeoutError) as e:
+        except (ClientConnectorError, ClientResponseError, TimeoutError, ServerDisconnectedError) as e:
             if request_info := getattr(e, "request_info", None):
                 url = str(request_info.url)
             else:
