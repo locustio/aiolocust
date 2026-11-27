@@ -49,7 +49,7 @@ class SpanMetricsProcessor(SpanProcessor):
             str, str | int | float | Sequence[str] | Sequence[bool] | Sequence[int] | Sequence[float] | Literal[True]
         ] = {"name": span.name}
         if span.attributes:
-            for attribute in ["http.method", "error.type"]:
+            for attribute in ["http.method", "error.type", "http.status"]:
                 if attribute in span.attributes:
                     attributes[attribute] = span.attributes[attribute]  # pyright: ignore[reportArgumentType]
 
